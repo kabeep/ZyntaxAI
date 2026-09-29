@@ -1,0 +1,35 @@
+# JavaScript dependencies and package-manager caches
+node_modules/
+.pnpm-store/
+
+# Frontend builds, Rust artifacts, and release staging
+/apps/desktop/dist/
+/target/
+/dist/
+/Builds/
+
+# Tauri-generated platform schemas (source bindings stay tracked)
+/src-tauri/gen/schemas/
+
+# Test and compiler caches
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Local environment files; keep shareable examples
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Local diagnostics and editor/OS temporary files
+*.log
+*.log.*
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
