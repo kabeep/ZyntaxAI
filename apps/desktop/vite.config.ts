@@ -28,5 +28,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    // Bound jsdom worker memory usage on developer machines and CI runners.
+    maxWorkers: 2,
   },
 });

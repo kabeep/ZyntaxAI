@@ -17,6 +17,8 @@ import { StatusDot, Switch } from "@/components/ui";
 import { Sidebar, type SidebarEntry } from "@/components/ui/Sidebar";
 import { ResizeEdges, Titlebar } from "@/components/ui/Titlebar";
 import { useAppStore } from "@/store/useAppStore";
+import { useRequestParametersStore } from "@/store/useRequestParametersStore";
+import { RequestParametersLeaveDialog } from "./panels/RequestParametersLeaveDialog";
 import { EVENTS, on, type UpdateInfo } from "@/lib/ipc";
 import { relativeTime } from "@/lib/format";
 import { AboutPanel } from "./panels/AboutPanel";
@@ -59,6 +61,9 @@ const PANELS: Record<SectionId, ComponentType> = {
 };
 
 export function App() {
+  const drafts = useRequestParametersStore((state) => state.drafts);
+  const savingParameters = useRequestParametersStore((state) => state.savingProvider !== null);
+  const [pendingSection, setPendingSection] = useState<SectionId | null>(null);
   const [section, setSection] = useState<SectionId>("hotkeys");
   const [maximized, setMaximized] = useState(false);
   const loading = useAppStore((state) => state.loading);
@@ -141,6 +146,13 @@ export function App() {
   const Panel = PANELS[section];
   const enabled = settings?.enabled ?? true;
 
+  const selectSection = (next: SectionId) => {
+    if (savingParameters) return;
+    if (section === "providers" && next !== section && Object.values(drafts).some((draft) => draft.text !== draft.saved)) {
+      setPendingSection(next);
+    } else { setSection(next); }
+  };
+
   return (
     <>
       <ResizeEdges />
@@ -152,7 +164,7 @@ export function App() {
             entries={SECTIONS as unknown as SidebarEntry<SectionId>[]}
             layout={settings?.sidebar ?? { categories: [] }}
             active={section}
-            onSelect={setSection}
+            onSelect={selectSection}
             onLayoutChange={(sidebar) => void update({ sidebar })}
 
 
@@ -203,6 +215,10 @@ export function App() {
           <main className="min-w-0 flex-1">{loading ? null : <Panel />}</main>
         </div>
       </div>
+      <RequestParametersLeaveDialog open={pendingSection !== null} onCancel={() => setPendingSection(null)} onLeave={() => {
+        if (pendingSection) setSection(pendingSection);
+        setPendingSection(null);
+      }} />
     </>
   );
 }

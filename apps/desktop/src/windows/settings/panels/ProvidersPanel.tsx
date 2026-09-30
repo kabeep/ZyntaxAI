@@ -14,6 +14,8 @@ import {
 import { cn } from "@/lib/cn";
 import { ipc, toFixError, type ModelInfo, type ProviderId } from "@/lib/ipc";
 import { useAppStore } from "@/store/useAppStore";
+import { useRequestParametersStore } from "@/store/useRequestParametersStore";
+import { RequestParametersEditor } from "./RequestParametersEditor";
 
 const PROVIDERS: {
   id: ProviderId;
@@ -49,6 +51,7 @@ const PROVIDERS: {
 ];
 
 export function ProvidersPanel() {
+  const savingParameters = useRequestParametersStore((state) => state.savingProvider !== null);
   const settings = useAppStore((state) => state.settings);
   const backend = useAppStore((state) => state.secretBackend);
   const update = useAppStore((state) => state.update);
@@ -135,6 +138,7 @@ export function ProvidersPanel() {
         {PROVIDERS.map((provider) => (
           <button
             key={provider.id}
+            disabled={savingParameters}
             onClick={() => void update({ activeProvider: provider.id })}
             aria-pressed={provider.id === active}
             className={cn(
@@ -243,6 +247,7 @@ export function ProvidersPanel() {
                 <Skeleton className="h-control-md flex-1" />
               ) : (
                 <Select
+                  disabled={savingParameters}
                   value={profile.model}
                   onValueChange={(model) => setProfile({ model })}
                   options={modelOptions}
@@ -282,6 +287,7 @@ export function ProvidersPanel() {
           control={
             <Input
               value={profile.baseUrl ?? ""}
+              disabled={savingParameters}
               onChange={(event) => setProfile({ baseUrl: event.target.value || null })}
               placeholder={DEFAULT_ENDPOINTS[active]}
               spellCheck={false}
@@ -290,6 +296,8 @@ export function ProvidersPanel() {
           }
         />
       </SettingGroup>
+
+      <RequestParametersEditor key={active} provider={active} />
 
       {active === "ollama" ? (
         <Callout tone="neutral" icon={<Info />} title="Adding another model">

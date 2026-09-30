@@ -17,6 +17,8 @@ import type { ModelInfo } from "./bindings/ModelInfo";
 import type { OutputMode } from "./bindings/OutputMode";
 import type { Persona } from "./bindings/Persona";
 import type { ProviderId } from "./bindings/ProviderId";
+import type { JsonValue } from "./bindings/serde_json/JsonValue";
+import type { RequestParameterError } from "./bindings/RequestParameterError";
 import type { SecretBackend } from "./bindings/SecretBackend";
 import type { Stats } from "./bindings/Stats";
 import type { UpdateInfo } from "./bindings/UpdateInfo";
@@ -38,6 +40,8 @@ export type {
   OutputMode,
   Persona,
   ProviderId,
+  JsonValue,
+  RequestParameterError,
   SecretBackend,
   Stats,
   UpdateInfo,
@@ -76,6 +80,10 @@ export const ipc = {
 
   getSettings: () => call<AppSettings>("get_settings"),
   saveSettings: (settings: AppSettings) => call<AppSettings>("save_settings", { settings }),
+  validateRequestParameters: (provider: ProviderId, draft: string) =>
+    invoke<JsonValue>("validate_request_parameters", { provider, draft }),
+  saveRequestParameters: (provider: ProviderId, draft: string) =>
+    call<AppSettings>("save_request_parameters", { provider, draft }),
   getPersonas: () => call<Persona[]>("get_personas"),
   getLanguages: () => call<Language[]>("get_languages"),
 

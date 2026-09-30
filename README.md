@@ -169,6 +169,48 @@ Which AI service corrects your text. You can switch at any time.
 - **Errors that name the cause and the fix** — a rejected key, a rate limit with its retry window, a
   model that does not exist, a server that is down, a request that timed out
 
+#### Advanced request parameters
+
+In **Providers & models**, expand **Edit JSON parameters** to set additional HTTP
+request-body fields for the selected provider. This is JSON body data, not HTTP
+headers or a complete request. Keep keys in **Authentication** and URLs in **Endpoint**.
+The placeholder is an example only; new and existing profiles default to `{}`.
+
+Click **Save** to apply a draft. **Format** only pretty-prints it; **Clear** only
+clears the draft until you save; **Revert** restores the saved value. Drafts survive
+provider switches and collapsing the editor. Leaving the panel offers Save,
+Discard or Cancel; quitting the application discards unsaved drafts. Parameters
+stay with their provider when its model or endpoint changes, so check compatibility.
+
+Objects merge recursively into the normal generation request. Custom values win
+at matching paths, while unspecified fields retain the defaults from **Processing
+depth**. Arrays and `null` replace values; `null` does not delete a field. Clearing
+and saving restores all defaults. For example, overriding only Ollama's temperature
+keeps the application's calculated `options.num_predict` budget:
+
+```json
+{
+  "think": false,
+  "options": {
+    "temperature": 0.7
+  }
+}
+```
+
+OpenAI-compatible fields go at the root (for example `temperature` and `max_tokens`).
+On DeepSeek models that support it, `{"thinking":{"type":"disabled"}}` disables
+thinking. Gemini fields go under `generationConfig`, including model-specific
+`thinkingConfig` options. These are provider-specific, not universal switches;
+local validation cannot guarantee that the selected API or model accepts them.
+
+The editor checks strict JSON, duplicate keys, a 64 KiB UTF-8 limit, at most 16
+container levels, safe integer values, and known parameter types. Model/message
+fields, streaming, tool calls and alternative response protocols are protected.
+Unknown non-reserved parameters are allowed. Model-list requests are unaffected.
+Settings store a JSON object; generation requests send compact JSON, preserving
+whitespace inside string values. API rejection is shown as an error, with no
+automatic fallback that removes your parameters.
+
 ### Appearance
 
 How ZyntaxAI looks on your desktop.

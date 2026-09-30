@@ -26,6 +26,15 @@ impl AppState {
     pub fn load() -> anyhow::Result<Self> {
         let paths = Paths::from_env()?;
         let settings = AppSettings::load(&paths.settings_file())?;
+        // Keep malformed overrides available in Settings for repair, while the
+        // provider's build/send validation prevents using them for generation.
+        for profile in &settings.providers {
+            if let Err(error) =
+                zyntax_providers::request_options::validate(profile.id, &profile.request_overrides)
+            {
+                tracing::warn!(provider = profile.id.slug(), field = %error.path, "saved request parameters need correction in Settings");
+            }
+        }
         let history = History::open(&paths.history_db())?;
         let secrets = SecretStore::new(paths.fallback_key_file(), paths.fallback_secrets_file());
         let capabilities = Capabilities::detect();
