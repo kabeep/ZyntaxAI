@@ -335,7 +335,7 @@ to putting the correction on your clipboard. It never fails silently.
 If your compositor has no global-shortcuts portal, bind a key to `zyntax fix` in its own
 configuration and the running instance will pick it up.
 
-macOS is built and tested by CI on every commit but has not yet been run on real hardware; treat it
+macOS receives Rust checks when Rust changes and installer builds during releases, but has not yet been run on real hardware; treat it
 as best-effort until it has.
 
 ---
@@ -448,13 +448,16 @@ they are not used by the fork release workflow.
 <br>
 
 ```sh
-cargo test --workspace                                  # Rust tests
-cargo clippy --workspace --all-targets -- -D warnings   # lints
+pnpm rs:test                                           # Rust tests, isolated binding exports
+pnpm rs:lint                                           # Rust lints
 pnpm typecheck                                          # TypeScript
 pnpm test                                               # frontend tests
 ```
 
-CI runs all four on Ubuntu, Windows and macOS for every push, then bundles installers for all three.
+Ordinary CI selects frontend, Rust, tooling and workflow checks from changed paths.
+Frontend-only changes do not run Cargo; docs-only changes skip source checks.
+Tests are selected when relevant or explicitly requested. Version-tag releases
+run full checks and bundle platform installers. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 The layout separates what can be tested from what needs a desktop:
 
@@ -469,8 +472,10 @@ apps/desktop/        React 19 + TypeScript frontend
 ```
 
 TypeScript types for the IPC boundary are generated from the Rust structs by
-[`ts-rs`](https://github.com/Aleph-Alpha/ts-rs) during `cargo test`, and committed so the frontend
-builds from a fresh clone. CI regenerates them and fails if they have drifted.
+[`ts-rs`](https://github.com/Aleph-Alpha/ts-rs), and committed so the frontend
+builds from a fresh clone. Test scripts export into an ignored temporary directory;
+contract checks and releases compare them with committed types without editing
+source. Use `pnpm bindings:generate` to explicitly update the source bindings.
 
 Provider behaviour is tested against a mock HTTP server, so the full request and response handling —
 auth failures, rate limits, truncation and malformed payloads — runs in CI without any API key.
