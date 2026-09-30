@@ -5,6 +5,7 @@ pub mod gemini;
 pub mod http;
 pub mod ollama;
 pub mod openai;
+pub mod request_options;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -62,6 +63,12 @@ pub fn build(
     profile: &ProviderProfile,
     api_key: Option<String>,
 ) -> Result<Box<dyn Provider>, ProviderError> {
+    request_options::validate(profile.id, &profile.request_overrides).map_err(|error| {
+        ProviderError::RequestParameters {
+            provider: profile.id,
+            error,
+        }
+    })?;
     let key = match (profile.id.needs_api_key(), api_key) {
         (true, Some(key)) if !key.trim().is_empty() => Some(key),
         (true, _) => {
@@ -75,12 +82,20 @@ pub fn build(
     let base_url = profile.base_url().to_owned();
 
     Ok(match profile.id {
-        ProviderId::Gemini => Box::new(gemini::Gemini::new(base_url, key.unwrap_or_default())?),
+        ProviderId::Gemini => Box::new(gemini::Gemini::new(
+            base_url,
+            key.unwrap_or_default(),
+            profile.request_overrides.clone(),
+        )?),
         ProviderId::OpenAiCompatible => Box::new(openai::OpenAiCompatible::new(
             base_url,
             key.unwrap_or_default(),
+            profile.request_overrides.clone(),
         )?),
-        ProviderId::Ollama => Box::new(ollama::Ollama::new(base_url)?),
+        ProviderId::Ollama => Box::new(ollama::Ollama::new(
+            base_url,
+            profile.request_overrides.clone(),
+        )?),
     })
 }
 

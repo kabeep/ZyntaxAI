@@ -11,13 +11,18 @@ const ID: ProviderId = ProviderId::Ollama;
 pub struct Ollama {
     client: reqwest::Client,
     base_url: String,
+    request_overrides: serde_json::Value,
 }
 
 impl Ollama {
-    pub fn new(base_url: String) -> Result<Self, ProviderError> {
+    pub fn new(
+        base_url: String,
+        request_overrides: serde_json::Value,
+    ) -> Result<Self, ProviderError> {
         Ok(Self {
             client: http::client()?,
             base_url,
+            request_overrides,
         })
     }
 }
@@ -58,7 +63,7 @@ impl Provider for Ollama {
     ) -> Result<Completion, ProviderError> {
         let url = format!("{}/api/chat", self.base_url);
 
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "model": request.model,
             "messages": [
                 { "role": "system", "content": request.prompt.system },
@@ -70,6 +75,14 @@ impl Provider for Ollama {
                 "num_predict": request.prompt.params.max_output_tokens,
             },
         });
+
+        crate::request_options::validate(ID, &self.request_overrides).map_err(|error| {
+            ProviderError::RequestParameters {
+                provider: ID,
+                error,
+            }
+        })?;
+        crate::request_options::merge(&mut body, &self.request_overrides);
 
         http::with_retry(cancel, |_attempt| {
             let request_future = self.client.post(&url).json(&body).send();

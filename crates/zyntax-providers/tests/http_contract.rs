@@ -33,6 +33,7 @@ fn profile(id: ProviderId, base_url: &str) -> ProviderProfile {
         id,
         base_url: Some(base_url.to_owned()),
         model: id.default_model().to_owned(),
+        request_overrides: serde_json::json!({}),
     }
 }
 
@@ -44,6 +45,123 @@ fn gemini_success() -> serde_json::Value {
         }],
         "usageMetadata": { "promptTokenCount": 42, "candidatesTokenCount": 9 }
     })
+}
+
+#[tokio::test]
+async fn custom_parameters_reach_each_provider_without_replacing_messages_or_defaults() {
+    for id in ProviderId::ALL {
+        let server = MockServer::start().await;
+        let mut profile = profile(id, &server.uri());
+        profile.request_overrides = match id {
+            ProviderId::OpenAiCompatible => {
+                serde_json::json!({"temperature":0.7,"thinking":{"type":"disabled"}})
+            }
+            ProviderId::Ollama => serde_json::json!({"think":false,"options":{"temperature":0.7}}),
+            ProviderId::Gemini => {
+                serde_json::json!({"generationConfig":{"temperature":0.7,"thinkingConfig":{"thinkingBudget":0}}})
+            }
+        };
+        let response = match id {
+            ProviderId::OpenAiCompatible => {
+                serde_json::json!({"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]})
+            }
+            ProviderId::Ollama => serde_json::json!({"message":{"content":"ok"},"done":true}),
+            ProviderId::Gemini => gemini_success(),
+        };
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(response))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let provider = build(&profile, Some("test-key".to_owned())).expect("build");
+        let request = request(id.default_model());
+        provider
+            .complete(&request, &CancellationToken::new())
+            .await
+            .expect("complete");
+        let received = server.received_requests().await.expect("requests");
+        let body: serde_json::Value = received[0].body_json().expect("JSON object");
+        let (temperature, tokens) = match id {
+            ProviderId::OpenAiCompatible => {
+                assert_eq!(body["thinking"]["type"], "disabled");
+                assert_eq!(body["messages"][0]["content"], request.prompt.system);
+                assert_eq!(body["messages"][1]["content"], request.prompt.user);
+                (&body["temperature"], &body["max_tokens"])
+            }
+            ProviderId::Ollama => {
+                assert_eq!(body["think"], false);
+                assert_eq!(body["stream"], false);
+                assert_eq!(body["messages"][1]["content"], request.prompt.user);
+                (
+                    &body["options"]["temperature"],
+                    &body["options"]["num_predict"],
+                )
+            }
+            ProviderId::Gemini => {
+                assert_eq!(
+                    body["generationConfig"]["thinkingConfig"]["thinkingBudget"],
+                    0
+                );
+                assert_eq!(
+                    body["systemInstruction"]["parts"][0]["text"],
+                    request.prompt.system
+                );
+                assert_eq!(body["contents"][0]["parts"][0]["text"], request.prompt.user);
+                (
+                    &body["generationConfig"]["temperature"],
+                    &body["generationConfig"]["maxOutputTokens"],
+                )
+            }
+        };
+        assert_eq!(temperature, 0.7);
+        assert_eq!(tokens, request.prompt.params.max_output_tokens);
+        assert_eq!(
+            received[0]
+                .headers
+                .get("content-type")
+                .expect("content type"),
+            "application/json"
+        );
+        assert!(!String::from_utf8_lossy(&received[0].body).contains("\n  \""));
+    }
+}
+
+#[tokio::test]
+async fn invalid_parameters_fail_without_sending_http_and_rejection_never_drops_overrides() {
+    let server = MockServer::start().await;
+    let mut profile = profile(ProviderId::Ollama, &server.uri());
+    profile.request_overrides = serde_json::json!({"messages":[]});
+    let Err(error) = build(&profile, None) else {
+        panic!("invalid profile must fail")
+    };
+    assert_eq!(error.code(), "request_parameters");
+    assert!(!error.is_retryable());
+    assert!(server
+        .received_requests()
+        .await
+        .expect("requests")
+        .is_empty());
+    profile.request_overrides = serde_json::json!({"think":false});
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(400)
+                .set_body_json(serde_json::json!({"error":"unsupported option"})),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let provider = build(&profile, None).expect("build");
+    let error = provider
+        .complete(&request("local"), &CancellationToken::new())
+        .await
+        .expect_err("rejected");
+    assert!(matches!(error, ProviderError::BadRequest { .. }));
+    let received = server.received_requests().await.expect("requests");
+    assert_eq!(received.len(), 1);
+    assert_eq!(
+        received[0].body_json::<serde_json::Value>().expect("JSON")["think"],
+        false
+    );
 }
 
 #[tokio::test]

@@ -18,6 +18,7 @@ async fn main() {
         model: std::env::args()
             .nth(1)
             .unwrap_or_else(|| "qwen2.5:7b".to_owned()),
+        request_overrides: serde_json::json!({}),
     };
 
     let input = std::env::args()

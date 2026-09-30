@@ -87,13 +87,33 @@ impl AppState {
             .clone()
     }
 
-    pub fn save_settings(
-        &self,
-        mut next: AppSettings,
-    ) -> Result<AppSettings, zyntax_store::SettingsError> {
+    pub fn save_settings(&self, mut next: AppSettings) -> anyhow::Result<AppSettings> {
+        for profile in &next.providers {
+            zyntax_providers::request_options::validate(profile.id, &profile.request_overrides)?;
+        }
+        let mut current = self.settings.lock().expect("settings lock poisoned");
         next.normalize();
         next.save(&self.paths.settings_file())?;
-        *self.settings.lock().expect("settings lock poisoned") = next.clone();
+        *current = next.clone();
+        Ok(next)
+    }
+
+    pub fn save_request_parameters(
+        &self,
+        provider: zyntax_core::ProviderId,
+        draft: &str,
+    ) -> anyhow::Result<AppSettings> {
+        let overrides = zyntax_providers::request_options::parse(provider, draft)?;
+        let mut current = self.settings.lock().expect("settings lock poisoned");
+        let mut next = current.clone();
+        let profile = next
+            .providers
+            .iter_mut()
+            .find(|profile| profile.id == provider)
+            .ok_or_else(|| anyhow::anyhow!("Provider profile is missing."))?;
+        profile.request_overrides = overrides;
+        next.save(&self.paths.settings_file())?;
+        *current = next.clone();
         Ok(next)
     }
 

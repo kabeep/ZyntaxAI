@@ -6,6 +6,11 @@ use zyntax_core::ProviderId;
 
 #[derive(Debug, Error)]
 pub enum ProviderError {
+    #[error("Invalid request parameters for {}: {error}", .provider.label())]
+    RequestParameters {
+        provider: ProviderId,
+        error: crate::request_options::RequestParameterError,
+    },
     #[error("no API key is configured for {}", .provider.label())]
     NoApiKey { provider: ProviderId },
 
@@ -69,6 +74,7 @@ impl ProviderError {
 
     pub fn code(&self) -> &'static str {
         match self {
+            ProviderError::RequestParameters { .. } => "request_parameters",
             ProviderError::NoApiKey { .. } => "no_api_key",
             ProviderError::Auth { .. } => "auth",
             ProviderError::RateLimited { .. } => "rate_limited",
@@ -86,6 +92,9 @@ impl ProviderError {
 
     pub fn remedy(&self) -> String {
         match self {
+            ProviderError::RequestParameters { .. } => {
+                "Correct the JSON in Providers & models → Advanced request parameters.".to_owned()
+            }
             ProviderError::NoApiKey { provider } => match provider.api_key_url() {
                 Some(url) => format!("Add a key in Providers & models. Get one at {url}."),
                 None => "Configure this provider in Providers & models.".to_owned(),

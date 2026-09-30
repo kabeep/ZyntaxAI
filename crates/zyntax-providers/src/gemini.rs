@@ -11,14 +11,20 @@ const ID: ProviderId = ProviderId::Gemini;
 pub struct Gemini {
     client: reqwest::Client,
     base_url: String,
+    request_overrides: serde_json::Value,
     api_key: String,
 }
 
 impl Gemini {
-    pub fn new(base_url: String, api_key: String) -> Result<Self, ProviderError> {
+    pub fn new(
+        base_url: String,
+        api_key: String,
+        request_overrides: serde_json::Value,
+    ) -> Result<Self, ProviderError> {
         Ok(Self {
             client: http::client()?,
             base_url,
+            request_overrides,
             api_key,
         })
     }
@@ -73,7 +79,7 @@ impl Provider for Gemini {
     ) -> Result<Completion, ProviderError> {
         let url = format!("{}/models/{}:generateContent", self.base_url, request.model);
 
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "systemInstruction": { "parts": [{ "text": request.prompt.system }] },
             "contents": [{ "role": "user", "parts": [{ "text": request.prompt.user }] }],
             "generationConfig": {
@@ -81,6 +87,14 @@ impl Provider for Gemini {
                 "maxOutputTokens": request.prompt.params.max_output_tokens,
             },
         });
+
+        crate::request_options::validate(ID, &self.request_overrides).map_err(|error| {
+            ProviderError::RequestParameters {
+                provider: ID,
+                error,
+            }
+        })?;
+        crate::request_options::merge(&mut body, &self.request_overrides);
 
         http::with_retry(cancel, |_attempt| {
             let request_future = self

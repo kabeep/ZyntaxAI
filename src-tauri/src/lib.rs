@@ -60,6 +60,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,
             commands::save_settings,
+            commands::validate_request_parameters,
+            commands::save_request_parameters,
             commands::get_personas,
             commands::get_languages,
             commands::get_capabilities,

@@ -33,6 +33,15 @@ pub fn save_settings(
     state: State<'_, AppState>,
     settings: AppSettings,
 ) -> CommandResult<AppSettings> {
+    for profile in &settings.providers {
+        zyntax_providers::request_options::validate(profile.id, &profile.request_overrides)
+            .map_err(|error| {
+                FixError::from(zyntax_providers::ProviderError::RequestParameters {
+                    provider: profile.id,
+                    error,
+                })
+            })?;
+    }
     let hotkey_changed = state.settings().hotkey != settings.hotkey;
 
     let saved = state.save_settings(settings).map_err(|err| {
@@ -62,6 +71,37 @@ pub fn save_settings(
 #[tauri::command]
 pub fn get_personas(state: State<'_, AppState>) -> Vec<Persona> {
     state.settings().all_personas()
+}
+
+#[tauri::command]
+pub fn validate_request_parameters(
+    provider: ProviderId,
+    draft: String,
+) -> Result<serde_json::Value, zyntax_providers::request_options::RequestParameterError> {
+    zyntax_providers::request_options::parse(provider, &draft)
+}
+
+#[tauri::command]
+pub fn save_request_parameters(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    provider: ProviderId,
+    draft: String,
+) -> CommandResult<AppSettings> {
+    validate_request_parameters(provider, draft.clone()).map_err(|error| {
+        FixError::from(zyntax_providers::ProviderError::RequestParameters { provider, error })
+    })?;
+    let saved = state
+        .save_request_parameters(provider, &draft)
+        .map_err(|err| {
+            simple_error(
+                "settings_write",
+                err.to_string(),
+                "Check that ZyntaxAI's config directory is writable.",
+            )
+        })?;
+    let _ = app.emit(events::SETTINGS_CHANGED, &saved);
+    Ok(saved)
 }
 
 #[tauri::command]
@@ -98,7 +138,7 @@ pub fn get_hotkey_status(state: State<'_, AppState>) -> crate::hotkeys::HotkeySt
 
 #[tauri::command]
 pub async fn list_models(app: AppHandle, provider: ProviderId) -> CommandResult<Vec<ModelInfo>> {
-    let (profile, api_key) = {
+    let (mut profile, api_key) = {
         let state = app.state::<AppState>();
         let settings = state.settings();
         let profile = settings
@@ -111,6 +151,8 @@ pub async fn list_models(app: AppHandle, provider: ProviderId) -> CommandResult<
         (profile, key)
     };
 
+    // Generation overrides do not participate in model discovery.
+    profile.request_overrides = serde_json::json!({});
     zyntax_providers::build(&profile, api_key)?
         .list_models()
         .await

@@ -451,6 +451,47 @@ mod tests {
     }
 
     #[test]
+    fn request_parameters_round_trip_as_objects_without_affecting_other_profiles() {
+        let (_dir, path) = temp_file();
+        let mut settings = AppSettings::default();
+        settings.providers[0].request_overrides = serde_json::json!({
+            "generationConfig": { "thinkingConfig": { "thinkingBudget": 0 } },
+            "note": "a  b\nc 日本語", "custom": [false, 0, null]
+        });
+        settings.save(&path).expect("save");
+        assert_eq!(AppSettings::load(&path).expect("load"), settings);
+        let document: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).expect("read")).expect("json");
+        assert!(document["providers"][0]["requestOverrides"].is_object());
+        for profile in settings.providers.iter().skip(1) {
+            assert_eq!(profile.request_overrides, serde_json::json!({}));
+        }
+    }
+
+    #[test]
+    fn older_provider_profiles_default_to_no_overrides() {
+        let profile: ProviderProfile =
+            serde_json::from_str(r#"{"id":"ollama","baseUrl":null,"model":"local"}"#)
+                .expect("old profile");
+        assert_eq!(profile.request_overrides, serde_json::json!({}));
+    }
+
+    #[test]
+    fn invalid_request_parameter_shapes_remain_available_for_repair() {
+        let (_dir, path) = temp_file();
+        let mut settings = AppSettings::default();
+        settings.providers[0].request_overrides = serde_json::Value::Null;
+        settings.save(&path).expect("save fixture");
+        assert_eq!(
+            AppSettings::load(&path)
+                .expect("settings can open")
+                .providers[0]
+                .request_overrides,
+            serde_json::Value::Null
+        );
+    }
+
+    #[test]
     fn save_leaves_no_temp_file_behind() {
         let (_dir, path) = temp_file();
         AppSettings::default().save(&path).expect("save");

@@ -101,6 +101,13 @@ pub struct ProviderProfile {
 
     pub base_url: Option<String>,
     pub model: String,
+
+    #[serde(default = "empty_request_overrides")]
+    pub request_overrides: serde_json::Value,
+}
+
+fn empty_request_overrides() -> serde_json::Value {
+    serde_json::json!({})
 }
 
 impl ProviderProfile {
@@ -109,6 +116,7 @@ impl ProviderProfile {
             id,
             base_url: None,
             model: id.default_model().to_owned(),
+            request_overrides: empty_request_overrides(),
         }
     }
 
@@ -160,6 +168,7 @@ mod tests {
             id: ProviderId::OpenAiCompatible,
             base_url: Some("http://localhost:1234/v1/".to_owned()),
             model: "local".to_owned(),
+            request_overrides: empty_request_overrides(),
         };
         assert_eq!(profile.base_url(), "http://localhost:1234/v1");
     }
@@ -170,6 +179,7 @@ mod tests {
             id: ProviderId::Ollama,
             base_url: Some(String::new()),
             model: "llama3.2".to_owned(),
+            request_overrides: empty_request_overrides(),
         };
         assert_eq!(profile.base_url(), ProviderId::Ollama.default_base_url());
     }

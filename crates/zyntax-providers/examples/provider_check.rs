@@ -17,6 +17,7 @@ async fn main() {
             id: ProviderId::Ollama,
             base_url: None,
             model: "qwen2.5:7b".to_owned(),
+            request_overrides: serde_json::json!({}),
         },
         None,
     )
@@ -28,6 +29,7 @@ async fn main() {
             id: ProviderId::OpenAiCompatible,
             base_url: Some("http://localhost:11434/v1".to_owned()),
             model: "qwen2.5:7b".to_owned(),
+            request_overrides: serde_json::json!({}),
         },
         Some("ollama-ignores-this".to_owned()),
     )
@@ -42,6 +44,7 @@ async fn main() {
                     base_url: None,
                     model: std::env::var("GEMINI_MODEL")
                         .unwrap_or_else(|_| "gemini-2.5-flash".to_owned()),
+                    request_overrides: serde_json::json!({}),
                 },
                 Some(key),
             )

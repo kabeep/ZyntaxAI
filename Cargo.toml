@@ -33,7 +33,7 @@ time = { version = "0.3", features = [
   "local-offset",
 ] }
 uuid = { version = "1", features = ["v4", "serde"] }
-ts-rs = "10"
+ts-rs = { version = "10", features = ["serde-json-impl"] }
 
 [profile.dev]
 # Full debuginfo across this dependency tree (webkit2gtk, gtk, hyper, rustls)

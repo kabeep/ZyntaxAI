@@ -9,6 +9,7 @@ description = "Domain model and prompt construction for ZyntaxAI. Pure logic, no
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 ts-rs.workspace = true
 similar = "2"
