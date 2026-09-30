@@ -418,12 +418,16 @@ pnpm release
 Run from a clean committed checkout. `pnpm release` builds the current platform and places installers,
 LICENSE, NOTICE, build metadata and checksums in `dist/release/<version>/<platform>/`. It does not upload.
 
-For automatic GitHub distribution, push a stable version tag matching the committed metadata:
+For automatic GitHub distribution, choose the next SemVer release and synchronize
+the metadata described in [docs/RELEASING.md](docs/RELEASING.md). Keep version numbers
+unchanged during ordinary development. For example, when releasing `1.1.0`:
 
 ```sh
+git add package.json apps/desktop/package.json Cargo.toml Cargo.lock src-tauri/tauri.conf.json README.md CHANGELOG.md
+git commit -m "Bump version 1.1.0"
+git tag -a v1.1.0 -m "Bump version 1.1.0"
 git push origin main
-git tag -a v1.0.3 -m "ZyntaxAI 1.0.3"
-git push origin v1.0.3
+git push origin v1.1.0
 ```
 
 Every platform must pass lint, types, tests and binding checks before packaging. The tag workflow

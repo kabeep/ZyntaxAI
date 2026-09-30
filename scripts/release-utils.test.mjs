@@ -7,8 +7,11 @@ import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   assertDraft,
+  assertReleaseVersion,
   commitNotes,
   readVersion,
+  isStableVersion,
+  isVersionBump,
   releaseEvent,
   verifyChecksums,
   writeChecksums,
@@ -32,6 +35,61 @@ test("release metadata rejects divergent or unsupported versions", (t) => {
   assert.throws(() => readVersion(root), /matching/);
   fs.writeFileSync(path.join(root, "package.json"), '{"version":"1.0.3-beta"}');
   assert.throws(() => readVersion(root), /matching/);
+});
+
+test("only exact stable version bump messages receive a commitlint exception", () => {
+  for (const message of ["Bump version 1.1.0", "Bump version 1.1.0\n", "Bump version 1.1.0\r\n"]) {
+    assert.equal(isVersionBump(message), true);
+  }
+  for (const message of [
+    "Bump version v1.1.0",
+    "Bump version 01.1.0",
+    "Bump version 1.1",
+    "Bump version 1.1.0-beta.1",
+    "Bump version 1.1.0+build",
+    "Bump version 1.1.0\n\nextra",
+    "Bump version 1.1.0 ",
+    "Bump version 1.1.0\n\n",
+    "anything goes",
+  ]) {
+    assert.equal(isVersionBump(message), false, message);
+  }
+  assert.equal(isStableVersion("1.1.0\n"), false);
+});
+
+test("release versions advance numerically and reset subordinate components", () => {
+  for (const version of ["1.0.3", "1.1.0", "2.0.0"]) {
+    assertReleaseVersion(`Bump version ${version}`, version, "1.0.2");
+  }
+  assertReleaseVersion("Bump version 1.10.0", "1.10.0", "1.9.9");
+  for (const version of ["1.0.2", "1.0.1", "0.9.9", "1.1.1", "2.1.0", "2.0.1"]) {
+    assert.throws(
+      () => assertReleaseVersion(`Bump version ${version}`, version, "1.0.2"),
+      /increase/,
+    );
+  }
+  assert.throws(() => assertReleaseVersion("feat: new behavior", "1.1.0", "1.0.2"), /exactly/);
+  assert.throws(() => assertReleaseVersion("Bump version 1.1.0", "1.2.0", "1.0.2"), /exactly/);
+});
+
+test("commitlint accepts version bumps while keeping normal Conventional Commit rules", () => {
+  const cli = fileURLToPath(new URL("../node_modules/@commitlint/cli/cli.js", import.meta.url));
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  for (const [message, valid] of [
+    ["Bump version 1.1.0", true],
+    ["feat(personas): add instructions", true],
+    ["ci(release): validate versions", true],
+    ["Bump version v1.1.0", false],
+    ["Bump version 01.1.0", false],
+    ["arbitrary message", false],
+  ]) {
+    const result = spawnSync(process.execPath, [cli], {
+      cwd: root,
+      input: message,
+      encoding: "utf8",
+    });
+    assert.equal(result.status === 0, valid, `${message}: ${result.stderr}${result.stdout}`);
+  }
 });
 
 function workflowFixture(t, { linux = false, history = false } = {}) {
@@ -92,6 +150,16 @@ function workflowFixture(t, { linux = false, history = false } = {}) {
   git("config", "user.name", "Release Test");
   git("config", "user.email", "release-test@example.invalid");
   git("config", "tag.gpgsign", "false");
+  const setVersion = (version) => {
+    for (const file of ["package.json", "apps/desktop/package.json", "src-tauri/tauri.conf.json"]) {
+      fs.writeFileSync(path.join(root, file), JSON.stringify({ version }));
+    }
+    fs.writeFileSync(
+      path.join(root, "Cargo.toml"),
+      `[workspace.package]\nversion = "${version}"\n`,
+    );
+  };
+  setVersion("1.0.2");
   git("add", ".");
   git(
     "-c",
@@ -127,6 +195,9 @@ function workflowFixture(t, { linux = false, history = false } = {}) {
       "feat: keyboard translation",
     );
   }
+  setVersion("1.0.3");
+  git("add", ".");
+  git("-c", "core.hooksPath=disabled-hooks", "commit", "--quiet", "-m", "Bump version 1.0.3");
   const commit = git("rev-parse", "HEAD");
   fs.mkdirSync(path.join(root, "dist/release/upload"), { recursive: true });
   const env = {
@@ -191,6 +262,35 @@ function workflowFixture(t, { linux = false, history = false } = {}) {
   }
   return { root, out, env, run, commit, base };
 }
+
+test("release workflow rejects a non-bump commit before accessing GitHub", (t) => {
+  const { root, env, run } = workflowFixture(t);
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "core.hooksPath=disabled-hooks",
+      "commit",
+      "--amend",
+      "--quiet",
+      "-m",
+      "feat: update application",
+    ],
+    { cwd: root },
+  );
+  env.GITHUB_SHA = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+  for (const event of ["workflow_dispatch", "push"]) {
+    env.GITHUB_EVENT_NAME = event;
+    env.GITHUB_REF = "refs/tags/v1.0.3";
+    const result = run("release-github.mjs", "validate");
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Release commit must be exactly/);
+    assert.equal(fs.existsSync(env.TEST_GH_LOG), false);
+  }
+});
 
 test("draft pipeline uploads exact source and notices to the fork with literal release notes", (t) => {
   const { root, out, env, run, commit } = workflowFixture(t);

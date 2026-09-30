@@ -85,6 +85,10 @@ preserved. Extend the lint baseline in a separate, reviewed change.
 
 Use Conventional Commits, for example `feat(providers): add request overrides`
 or `test(format): support localized output`. The commit-msg hook uses commitlint.
+The only additional exception is the exact stable release message
+`Bump version MAJOR.MINOR.PATCH`. Version numbers change only in that dedicated
+release commit, with a matching `vMAJOR.MINOR.PATCH` tag; follow
+[the SemVer release policy](docs/RELEASING.md#version-policy).
 
 ## CI and release checks
 

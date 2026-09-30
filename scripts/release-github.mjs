@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   assertDraft,
+  assertReleaseVersion,
   commitNotes,
   readVersion,
   releaseEvent,
@@ -33,6 +34,11 @@ if (commit !== process.env.GITHUB_SHA || run("git", ["status", "--porcelain"]))
 const version = readVersion(root);
 const tag = `v${version}`;
 const autoPublish = releaseEvent(process.env.GITHUB_EVENT_NAME, process.env.GITHUB_REF, tag);
+assertReleaseVersion(
+  run("git", ["log", "-1", "--format=%B"]),
+  version,
+  JSON.parse(run("git", ["show", "HEAD^:package.json"])).version,
+);
 function api(endpoint, optional = false) {
   try {
     return JSON.parse(run("gh", ["api", `repos/${repository}/${endpoint}`]));

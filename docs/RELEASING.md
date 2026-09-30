@@ -24,6 +24,35 @@ Suggested release-note fields: fork version, build commit, source tag, correspon
 ZIP/tarball, build instructions, dated changes, GPL-3.0-or-later and no-warranty notice.
 Do not publish a release with unresolved placeholder fields.
 
+## Version policy
+
+Keep the current version unchanged during normal feature, fix and tooling work.
+Only change it when preparing a release, in a dedicated commit whose entire message
+is `Bump version MAJOR.MINOR.PATCH`, without a Conventional Commit prefix or body.
+All other commits continue to use Conventional Commits. The matching tag is
+`vMAJOR.MINOR.PATCH` and must point to that version commit.
+
+Choose the release level from changes since the last released version, following
+[SemVer 2.0.0](https://semver.org/):
+
+- PATCH: backward-compatible bug fixes, such as `1.0.2` to `1.0.3`.
+- MINOR: backward-compatible features; reset PATCH, such as `1.0.2` to `1.1.0`.
+- MAJOR: incompatible changes to documented interfaces or persisted configuration;
+  reset MINOR and PATCH, such as `1.0.2` to `2.0.0`.
+
+Compatibility is a maintainer decision; a commit prefix or file extension cannot
+determine it reliably. Validation enforces stable SemVer syntax (no leading zeroes),
+numerical advancement and component resets. Prereleases/build metadata remain outside
+this stable installer workflow. Never change or reuse a published version/tag.
+
+Synchronize root `package.json`, `apps/desktop/package.json`, Cargo workspace
+`Cargo.toml`, `src-tauri/tauri.conf.json` and the five workspace package entries in
+`Cargo.lock`. Update the README version badge/download text and release changelog.
+Preserve dependency versions and unrelated changes. Complete full release checks,
+then commit and tag the reviewed release. Workflow validation requires the exact
+bump message, matching metadata/tag, and an increase over the parent commit's version;
+both automatic and manual release runs must target this dedicated version commit.
+
 ## Local installer build
 
 `pnpm tauri build --no-bundle` produces an optimized executable. To produce the release installers
@@ -46,12 +75,15 @@ tools installed on the appropriate host. Windows/Linux cross-host packaging is n
 Push a stable `vMAJOR.MINOR.PATCH` tag pointing to the committed version you intend to distribute.
 The tag must match all four metadata versions exactly; prerelease tags containing `-` do not trigger
 this workflow. Push individual version tags, rather than publishing every local/upstream tag.
-For the first fork version, use Git Bash after committing all intended changes:
+For example, after choosing `1.1.0` and updating the metadata as described above,
+use Git Bash (these commands publish a release; do not run them during ordinary development):
 
 ```sh
+git add package.json apps/desktop/package.json Cargo.toml Cargo.lock src-tauri/tauri.conf.json README.md CHANGELOG.md
+git commit -m "Bump version 1.1.0"
+git tag -a v1.1.0 -m "Bump version 1.1.0"
 git push origin main
-git tag -a v1.0.3 -m "ZyntaxAI 1.0.3"
-git push origin v1.0.3
+git push origin v1.1.0
 ```
 
 The tag's commit must contain the Release workflow. All supported platforms are included:
@@ -71,8 +103,8 @@ GitHub release publication does not enable the desktop application's disabled up
 
 ## Manual GitHub draft release
 
-1. Commit the desired version and push it to the fork. Align all four version fields: root package,
-   desktop package, Cargo workspace and Tauri configuration; update Cargo.lock too.
+1. Prepare the dedicated `Bump version MAJOR.MINOR.PATCH` commit, matching version tag and
+   aligned metadata/lockfile described above. Push the commit; choose this exact ref for the draft.
 2. On the fork's Actions page, select **Release**, then **Run workflow** on the intended ref.
    Windows and both macOS architectures are included; select Linux to also build Deb/AppImage.
    Notes are optional and passed as data, not shell commands.

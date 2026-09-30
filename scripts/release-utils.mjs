@@ -2,6 +2,34 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+export function isStableVersion(version) {
+  if (typeof version !== "string") return false;
+  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version);
+  return match?.[0] === version;
+}
+
+export function isVersionBump(message) {
+  const text = message.replace(/\r?\n$/, "");
+  return text.startsWith("Bump version ") && isStableVersion(text.slice("Bump version ".length));
+}
+
+export function assertReleaseVersion(message, version, previousVersion) {
+  if (!isVersionBump(message) || message.replace(/\r?\n$/, "") !== `Bump version ${version}`) {
+    throw new Error("Release commit must be exactly Bump version <metadata version>.");
+  }
+  if (!isStableVersion(previousVersion)) throw new Error("Invalid previous stable version.");
+  const [major, minor, patch] = version.split(".").map(BigInt);
+  const [oldMajor, oldMinor, oldPatch] = previousVersion.split(".").map(BigInt);
+  const valid =
+    (major > oldMajor && minor === 0n && patch === 0n) ||
+    (major === oldMajor && minor > oldMinor && patch === 0n) ||
+    (major === oldMajor && minor === oldMinor && patch > oldPatch);
+  if (!valid)
+    throw new Error(
+      "Version must increase; reset patch for a minor bump and minor/patch for a major bump.",
+    );
+}
+
 export const targets = {
   "x86_64-pc-windows-msvc": {
     platform: "windows-x86_64",
@@ -23,7 +51,7 @@ export function readVersion(root) {
   );
   const cargo = fs.readFileSync(path.join(root, "Cargo.toml"), "utf8");
   versions.push(cargo.match(/\[workspace\.package\][\s\S]*?\bversion\s*=\s*"([^"]+)"/)?.[1]);
-  if (!/^\d+\.\d+\.\d+$/.test(versions[0]) || versions.some((version) => version !== versions[0])) {
+  if (!isStableVersion(versions[0]) || versions.some((version) => version !== versions[0])) {
     throw new Error(
       "Release requires matching numeric major.minor.patch versions in package, desktop, Tauri and Cargo metadata.",
     );
