@@ -407,40 +407,28 @@ hit this.
 
 <br>
 
-The following describes the retained upstream release tooling, not an active update channel for
-this fork. Do not publish its upstream manifests as fork updates; follow [docs/RELEASING.md](docs/RELEASING.md).
-
-Upstream uses no release server. Its app fetches one static `latest.json` and verifies every artifact it
-downloads against the public key in `src-tauri/tauri.conf.json`.
+The fork publishes ordinary installers to its own GitHub Releases. Automatic update checks remain
+disabled; no updater key or upstream manifest is used.
 
 ```sh
-TAURI_SIGNING_PRIVATE_KEY=/path/to/updater.key \
-TAURI_SIGNING_PRIVATE_KEY_PASSWORD= \
-pnpm release --notes "What changed"
+pnpm check
+pnpm release
 ```
 
-That builds the current platform, collects the installers into `dist/release/<version>/` and writes
-that platform's entry into `dist/release/latest.json`. Windows and macOS are built by the **Release**
-workflow (`Actions → Release → Run workflow`), which signs them with the same key from repository
-secrets and attaches everything to a draft GitHub release. A draft is readable only by people with
-write access to the repository, and creates no tag, so nothing reaches the public even though the
-repository is. The build jobs upload straight to that draft and never to an Actions artifact —
-artifacts on a public repository can be downloaded by anyone.
+Run from a clean committed checkout. `pnpm release` builds the current platform and places installers,
+LICENSE, NOTICE, build metadata and checksums in `dist/release/<version>/<platform>/`. It does not upload.
 
-Each platform arrives as one `zyntaxai-<target>.zip` on the draft release. Drop those in `Builds/`,
-then `node scripts/site-sync.mjs Builds/*.zip dist/release` unpacks them and merges everything into
-`zyntaxai/` — installers into `releases/<version>/`, every platform entry into one `latest.json`,
-and a fresh `SHA256SUMS`.
-Upload the release files before the manifest, or clients are told about a build that is not there
-yet.
+For GitHub distribution, use **Actions → Release → Run workflow** on the committed version you want
+to distribute. Every selected platform must pass lint, types, tests and binding checks before packaging.
+Windows and both macOS architectures are built by default; Linux is optional. After all builds pass,
+the workflow verifies artifacts and creates a **draft** in this fork with installers, matching source
+archives, notices, checksums and source/build instructions. Review the draft and publish it manually.
+CI artifacts are temporary and may be accessible to repository readers before release publication.
 
-The variable is `TAURI_SIGNING_PRIVATE_KEY`, not `..._PATH`; the latter is a Tauri 1 name that the
-current CLI ignores while still producing a bundle, silently unsigned. The script fails the run if no
-signature ends up beside an artifact.
-
-The full walkthrough, including what `latest.json` is and how the signature check works, is in
-[`zyntaxai/PUBLISHING.md`](zyntaxai/PUBLISHING.md).
-
+Published releases cannot be overwritten by this workflow. A draft can be retried only for the same
+source commit and version. See [docs/RELEASING.md](docs/RELEASING.md) for requirements and limitations.
+The retained `site:sync` tool and `zyntaxai/PUBLISHING.md` describe upstream website distribution;
+they are not used by the fork release workflow.
 </details>
 
 <details>
@@ -521,5 +509,6 @@ This fork does not check for or install updates from the upstream project. Setti
 startup checks, manual checks,
 installation/restart and the upstream download action; startup checking defaults to off.
 Previously enabled settings cannot trigger checks, and updater commands reject operations
-before accessing the upstream service. The original updater implementation, endpoints and
-release tooling are retained for future configuration of a fork-owned update channel.
+before accessing the upstream service. The original updater implementation and endpoints are
+retained for future configuration of a fork-owned update channel. The fork release workflow
+distributes ordinary installers and does not configure automatic updates.

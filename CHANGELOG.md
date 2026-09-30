@@ -13,6 +13,8 @@ not an upstream release. The upstream changelog is preserved below.
 - 2026-09-30: disable upstream update controls and checks; retain the updater implementation.
 - 2026-09-30: identify the fork in About, retain upstream credit, route downloads/source to the fork,
   and include an offline licence viewer and no-warranty notice.
+- 2026-09-30: replace upstream release packaging with checked,
+  unsigned installers, matching source archives, notices and checksums in a GitHub draft release.
 
 
 ## 1.0.2

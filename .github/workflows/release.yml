@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: Release notes (optional; source and licence details are added automatically)
+        required: false
+        default: ""
+      linux:
+        description: Also build Linux installers
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  HUSKY: "0"
+  CARGO_INCREMENTAL: "0"
+  CARGO_BUILD_JOBS: "2"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Validate versions, source commit and existing release
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-github.mjs validate
+
+  build:
+    needs: validate
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.linux && '[{"os":"windows-latest","target":"x86_64-pc-windows-msvc","platform":"windows-x86_64"},{"os":"macos-14","target":"aarch64-apple-darwin","platform":"darwin-aarch64"},{"os":"macos-15-intel","target":"x86_64-apple-darwin","platform":"darwin-x86_64"},{"os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","platform":"linux-x86_64"}]' || '[{"os":"windows-latest","target":"x86_64-pc-windows-msvc","platform":"windows-x86_64"},{"os":"macos-14","target":"aarch64-apple-darwin","platform":"darwin-aarch64"},{"os":"macos-15-intel","target":"x86_64-apple-darwin","platform":"darwin-x86_64"}]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libxdo-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      - name: Lint, types, tests and generated bindings
+        run: pnpm check
+      - name: Build installers without updater signing
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        shell: bash
+        run: pnpm release --target "$BUILD_TARGET"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.platform }}
+          path: dist/release/${{ needs.validate.outputs.version }}/${{ matrix.platform }}/*
+          if-no-files-found: error
+          retention-days: 7
+
+  draft:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          path: dist/release/upload
+          merge-multiple: true
+      - name: Verify artifacts and create or update the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ inputs.notes }}
+          RELEASE_LINUX: ${{ inputs.linux }}
+        run: node scripts/release-github.mjs draft

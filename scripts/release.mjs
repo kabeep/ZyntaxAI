@@ -1,157 +1,106 @@
 #!/usr/bin/env node
-
-
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readVersion, targets, writeChecksums } from "./release-utils.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const OUT = path.join(ROOT, "dist", "release");
-
-const BASE_URL = "https://zsync.eu/zyntaxai/releases";
-
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
-const notes = valueOf("--notes");
-const skipBuild = args.includes("--skip-build");
-const triple = valueOf("--target");
+const defaultTarget = {
+  "win32-x64": "x86_64-pc-windows-msvc",
+  "darwin-arm64": "aarch64-apple-darwin",
+  "darwin-x64": "x86_64-apple-darwin",
+  "linux-x64": "x86_64-unknown-linux-gnu",
+}[`${process.platform}-${process.arch}`];
+const target =
+  args.length === 0
+    ? defaultTarget
+    : args[0] === "--target" && args.length === 2
+      ? args[1]
+      : undefined;
+if (!targets[target]) throw new Error("Usage: pnpm release [--target <supported Rust triple>]");
+const { platform, bundles, extension } = targets[target];
+const macOS = platform.startsWith("darwin");
+const version = readVersion(root);
+const git = (...parameters) =>
+  execFileSync("git", parameters, { cwd: root, encoding: "utf8" }).trim();
+if (git("status", "--porcelain"))
+  throw new Error("Release builds require a clean, committed working tree.");
+const commit = git("rev-parse", "HEAD");
+if (process.env.GITHUB_SHA && process.env.GITHUB_SHA !== commit)
+  throw new Error("Build checkout differs from the workflow commit.");
 
-const BUNDLE = triple
-  ? path.join(ROOT, "target", triple, "release", "bundle")
-  : path.join(ROOT, "target", "release", "bundle");
-
-const version = JSON.parse(
-  fs.readFileSync(path.join(ROOT, "src-tauri", "tauri.conf.json"), "utf8"),
-).version;
-
-const ARCH = triple
-  ? { x86_64: "x86_64", aarch64: "aarch64" }[triple.split("-")[0]]
-  : { x64: "x86_64", arm64: "aarch64" }[process.arch];
-const OS = { linux: "linux", win32: "windows", darwin: "darwin" }[process.platform];
-if (!ARCH || !OS) fail(`unsupported platform: ${triple ?? `${process.platform}/${process.arch}`}`);
-const TARGET = `${OS}-${ARCH}`;
-
-
-const PATTERNS = {
-  linux: { dir: "appimage", ext: ".AppImage" },
-
-
-  windows: { dir: "nsis", ext: "-setup.exe" },
-  darwin: { dir: "macos", ext: ".app.tar.gz" },
-}[OS];
-
-if (!skipBuild) {
-  console.log(`Building ZyntaxAI ${version} for ${TARGET}…`);
-  if (!process.env.TAURI_SIGNING_PRIVATE_KEY) {
-    fail(
-      "no signing key. Set TAURI_SIGNING_PRIVATE_KEY to the key or its path\n" +
-        "(and TAURI_SIGNING_PRIVATE_KEY_PASSWORD, empty if it has none).\n" +
-        "Without it the bundle has no signature and the updater will reject it.",
-    );
-  }
-
-  const cli = path.join(ROOT, "node_modules", "@tauri-apps", "cli", "tauri.js");
-  if (!fs.existsSync(cli)) fail(`the Tauri CLI is missing at ${cli} — run pnpm install first`);
-
-  execFileSync(process.execPath, [cli, "build", ...(triple ? ["--target", triple] : [])], {
-    cwd: ROOT,
+const targetDir = path.resolve(root, process.env.CARGO_TARGET_DIR || "target");
+const bundleDir = path.join(targetDir, target, "release", "bundle");
+if (path.relative(targetDir, bundleDir) !== path.join(target, "release", "bundle")) {
+  throw new Error("Bundle cleanup escaped the configured Cargo target directory.");
+}
+// Remove only the known bundle directory so cached installers cannot enter a new release.
+fs.rmSync(bundleDir, { recursive: true, force: true });
+execFileSync(
+  process.execPath,
+  [
+    path.join(root, "node_modules/@tauri-apps/cli/tauri.js"),
+    "build",
+    "--ci",
+    ...(macOS ? [] : ["--no-sign"]),
+    "--target",
+    target,
+    "--bundles",
+    bundles,
+    "--config",
+    JSON.stringify({
+      bundle: {
+        createUpdaterArtifacts: false,
+        ...(macOS ? { macOS: { signingIdentity: "-" } } : {}),
+      },
+    }),
+    "--",
+    "--locked",
+  ],
+  {
+    cwd: root,
     stdio: "inherit",
     env: {
       ...process.env,
-      ...(OS === "linux" ? { NO_STRIP: "true" } : {}),
+      ...(macOS ? { APPLE_SIGNING_IDENTITY: "-" } : {}),
+      ...(process.platform === "linux" ? { NO_STRIP: "true" } : {}),
     },
-  });
-}
-
-const dir = path.join(BUNDLE, PATTERNS.dir);
-const artifact = fs
-  .readdirSync(dir)
-  .filter((name) => name.endsWith(PATTERNS.ext))
-  .sort()
-  .pop();
-if (!artifact) fail(`no ${PATTERNS.ext} bundle in ${dir}`);
-
-const signaturePath = path.join(dir, `${artifact}.sig`);
-if (!fs.existsSync(signaturePath)) {
-  fail(
-    `${artifact} has no .sig beside it.\n` +
-      "Either the build ran without a signing key, or createUpdaterArtifacts\n" +
-      "is off in tauri.conf.json. An unsigned artifact can never be installed.",
-  );
-}
-
-const published =
-  OS === "darwin" ? `ZyntaxAI_${version}_${ARCH}.app.tar.gz` : artifact;
-
-const versionDir = path.join(OUT, version);
-fs.mkdirSync(versionDir, { recursive: true });
-fs.copyFileSync(path.join(dir, artifact), path.join(versionDir, published));
-fs.copyFileSync(signaturePath, path.join(versionDir, `${published}.sig`));
-
-for (const extra of collectInstallers()) {
-  fs.copyFileSync(extra, path.join(versionDir, path.basename(extra)));
-}
-
-const manifestPath = path.join(OUT, "latest.json");
-let manifest = { version, notes: notes ?? "", pub_date: new Date().toISOString(), platforms: {} };
-
-if (fs.existsSync(manifestPath)) {
-  const existing = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-
-
-  if (existing.version === version) {
-    manifest = { ...existing, notes: notes ?? existing.notes, platforms: existing.platforms ?? {} };
-  }
-}
-
-manifest.platforms[TARGET] = {
-  signature: fs.readFileSync(signaturePath, "utf8").trim(),
-  url: `${BASE_URL}/${version}/${encodeURIComponent(published)}`,
-};
-
-fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-
-const built = fs.readdirSync(versionDir);
-console.log(`\nRelease ${version} — ${TARGET}\n`);
-for (const name of built) {
-  const size = fs.statSync(path.join(versionDir, name)).size;
-  console.log(`  ${name}  (${(size / 1024 / 1024).toFixed(1)} MB)`);
-  console.log(`    sha256 ${sha256(path.join(versionDir, name))}`);
-}
-console.log(`\nPlatforms in the manifest: ${Object.keys(manifest.platforms).join(", ")}`);
-console.log(`\nUpload:\n  ${path.relative(ROOT, versionDir)}/  →  ${BASE_URL}/${version}/`);
-console.log(`  ${path.relative(ROOT, manifestPath)}  →  https://zsync.eu/zyntaxai/latest.json`);
-console.log(
-  "\nUpload the artifacts before the manifest. The other order advertises a\n" +
-    "download that is not there yet.",
+  },
 );
 
-function collectInstallers() {
-  const wanted = [".deb", ".rpm", ".AppImage", ".msi", "-setup.exe", ".dmg"];
-  const found = [];
-  const walk = (current) => {
-    if (!fs.existsSync(current)) return;
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (wanted.some((ext) => entry.name.endsWith(ext))) found.push(full);
-    }
-  };
-  walk(BUNDLE);
-  return found;
+const installers = fs
+  .readdirSync(bundleDir, { recursive: true })
+  .filter((file) =>
+    bundles
+      .split(",")
+      .some((bundle) =>
+        file.endsWith(
+          { nsis: "-setup.exe", dmg: ".dmg", deb: ".deb", appimage: ".AppImage" }[bundle],
+        ),
+      ),
+  )
+  .map((file) => path.join(bundleDir, file));
+if (
+  !installers.some((file) => file.endsWith(extension)) ||
+  (bundles.includes("deb") && !installers.some((file) => file.endsWith(".deb")))
+) {
+  throw new Error(`Missing expected installers for ${platform}.`);
 }
-
-function sha256(file) {
-  return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+const out = path.join(root, "dist/release", version, platform);
+fs.rmSync(out, { recursive: true, force: true });
+fs.mkdirSync(out, { recursive: true });
+for (const file of installers) {
+  const name = `ZyntaxAI_${version}_${platform}${file.endsWith("-setup.exe") ? "-setup.exe" : path.extname(file)}`;
+  if (fs.existsSync(path.join(out, name))) throw new Error(`Duplicate installer: ${name}`);
+  fs.copyFileSync(file, path.join(out, name));
 }
-
-function valueOf(flag) {
-  const index = args.indexOf(flag);
-  return index === -1 ? undefined : args[index + 1];
-}
-
-function fail(message) {
-  console.error(`\nrelease: ${message}\n`);
-  process.exit(1);
-}
+for (const file of ["LICENSE", "NOTICE"])
+  fs.copyFileSync(path.join(root, file), path.join(out, file));
+fs.writeFileSync(
+  path.join(out, `BUILDINFO-${platform}.json`),
+  `${JSON.stringify({ version, commit, target, platform, updaterArtifacts: false, signing: macOS ? "ad-hoc" : "none" }, null, 2)}\n`,
+);
+writeChecksums(out, fs.readdirSync(out), `SHA256SUMS-${platform}.txt`);
+console.log(`Installers and notices ready in ${out}. No release was uploaded.`);
