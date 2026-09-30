@@ -1,12 +1,9 @@
-import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { git } from "./check-scopes.mjs";
+import { runRustTests } from "./bindings.mjs";
 
-const result = spawnSync("cargo", ["test", "--workspace", "--locked"], {
-  stdio: "inherit",
-  env: {
-    ...process.env,
-    TS_RS_EXPORT_DIR: fileURLToPath(new URL("../apps/desktop/src/lib/bindings/", import.meta.url)),
-  },
-});
-if (result.error) console.error(result.error.message);
-process.exit(result.status ?? 1);
+try {
+  runRustTests(git(process.cwd(), ["rev-parse", "--show-toplevel"]).trim(), process.argv.slice(2));
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = 1;
+}

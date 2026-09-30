@@ -2,7 +2,8 @@
   "name": "zyntax-ai",
   "version": "1.0.2",
   "private": true,
-  "description": "ZyntaxAI \u2014 cross-platform AI writing assistant",
+  "engines": { "node": ">=22.22.1" },
+  "description": "ZyntaxAI — cross-platform AI writing assistant",
   "scripts": {
     "dev": "pnpm --filter @zyntax/desktop dev",
     "build": "pnpm --filter @zyntax/desktop build",
@@ -19,8 +20,14 @@
     "rs:fmt:check": "cargo fmt --all -- --check",
     "lint": "biome lint --error-on-warnings && pnpm rs:fmt:check && pnpm rs:lint",
     "bindings:check": "node scripts/check-bindings.mjs",
+    "bindings:verify": "node scripts/check-bindings.mjs --verify",
+    "bindings:generate": "node scripts/check-bindings.mjs --generate",
+    "check:staged": "node scripts/check-staged.mjs",
+    "check:worktree": "node scripts/check-changes.mjs worktree",
+    "check:related": "node scripts/check-changes.mjs related",
+    "checks:test": "node --test scripts/checks.test.mjs",
     "release:test": "node --test scripts/release-utils.test.mjs",
-    "check": "pnpm lint && pnpm release:test && pnpm rs:test && pnpm bindings:check && pnpm typecheck && pnpm test",
+    "check": "pnpm lint && pnpm release:test && pnpm checks:test && pnpm rs:test && pnpm bindings:check && pnpm typecheck && pnpm test",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -28,7 +35,8 @@
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@tauri-apps/cli": "^2.11.4",
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "lint-staged": "17.6.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

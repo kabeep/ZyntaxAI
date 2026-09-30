@@ -1,11 +1,15 @@
-import { execFileSync } from "node:child_process";
+import { generateBindings, runRustTests, verifyBindings } from "./bindings.mjs";
+import { git } from "./check-scopes.mjs";
 
-const directory = "apps/desktop/src/lib/bindings";
-// cargo test exports ts-rs bindings. Compare them to the index, allowing newly
-// staged bindings while rejecting stale or missing exports and untracked files.
-const changed = execFileSync("git", ["diff", "--name-only", "--", directory], { encoding: "utf8" });
-const untracked = execFileSync("git", ["ls-files", "--others", "--exclude-standard", "--", directory], { encoding: "utf8" });
-if (changed.trim() || untracked.trim()) {
-  console.error("Generated TypeScript bindings changed. Review and stage the exports, then rerun checks.\n" + changed + untracked);
-  process.exit(1);
+try {
+  const root = git(process.cwd(), ["rev-parse", "--show-toplevel"]).trim();
+  const mode = process.argv[2];
+  if (mode && !["--verify", "--generate"].includes(mode))
+    throw new Error("Expected --verify or --generate");
+  if (mode) runRustTests(root, ["export_bindings"]);
+  if (mode === "--generate") generateBindings(root);
+  else verifyBindings(root);
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = 1;
 }
