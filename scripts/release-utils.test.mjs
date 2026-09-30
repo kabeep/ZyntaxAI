@@ -126,6 +126,7 @@ function workflowFixture(t, { linux = false, history = false } = {}) {
       fs.appendFileSync(process.env.TEST_GH_LOG, JSON.stringify(args) + '\\n');
       const state = JSON.parse(fs.readFileSync(process.env.TEST_GH_STATE, 'utf8'));
       if (args[0] === 'api') {
+        if (args[1].endsWith('/')) { const error = new Error('Invalid API path'); error.stderr = 'HTTP 404'; throw error; }
         let result = {};
         if (args[1].includes('/releases/tags/')) result = state.release;
         if (args[1].includes('/releases?')) result = state.releases || [];
@@ -307,6 +308,7 @@ test("draft pipeline uploads exact source and notices to the fork with literal r
   );
   verifyChecksums(out, "SHA256SUMS.txt");
   const calls = fs.readFileSync(env.TEST_GH_LOG, "utf8").trim().split("\n").map(JSON.parse);
+  assert.deepEqual(calls[0], ["api", "repos/example/fork"]);
   const create = calls.find((args) => args[1] === "create");
   assert.equal(create[create.indexOf("--repo") + 1], "example/fork");
   assert.equal(create[create.indexOf("--target") + 1], commit);

@@ -41,7 +41,8 @@ assertReleaseVersion(
 );
 function api(endpoint, optional = false) {
   try {
-    return JSON.parse(run("gh", ["api", `repos/${repository}/${endpoint}`]));
+    const route = endpoint ? `repos/${repository}/${endpoint}` : `repos/${repository}`;
+    return JSON.parse(run("gh", ["api", route]));
   } catch (error) {
     if (optional && String(error.stderr).includes("HTTP 404")) return null;
     throw error;
