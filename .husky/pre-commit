@@ -1,0 +1,3 @@
+node scripts/check-index.mjs
+pnpm check
+node scripts/check-index.mjs

@@ -13,12 +13,21 @@
     "app:build": "tauri build",
     "release": "node scripts/release.mjs",
     "site:sync": "node scripts/site-sync.mjs",
-    "rs:test": "cargo test --workspace",
-    "rs:lint": "cargo clippy --workspace --all-targets -- -D warnings",
-    "rs:fmt": "cargo fmt --all"
+    "rs:test": "node scripts/test-rust.mjs",
+    "rs:lint": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+    "rs:fmt": "cargo fmt --all",
+    "rs:fmt:check": "cargo fmt --all -- --check",
+    "lint": "biome lint --error-on-warnings && pnpm rs:fmt:check && pnpm rs:lint",
+    "bindings:check": "node scripts/check-bindings.mjs",
+    "check": "pnpm lint && pnpm rs:test && pnpm bindings:check && pnpm typecheck && pnpm test",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.4"
+    "@biomejs/biome": "^2.5.14",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@tauri-apps/cli": "^2.11.4",
+    "husky": "^9.1.7"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

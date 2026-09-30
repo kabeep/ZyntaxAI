@@ -4,15 +4,18 @@ import { cost, count, duration, relativeTime, timestamp } from "./format";
 describe("count", () => {
   it("shows small numbers exactly", () => {
     expect(count(0)).toBe("0");
-    expect(count(9_999)).toBe("9,999");
+    expect(count(9_999)).toBe(new Intl.NumberFormat().format(9_999));
   });
 
 
   it("compacts large numbers so columns stay narrow", () => {
     const compact = count(1_500_000);
     expect(compact).not.toBe(count(1_499));
-    expect(compact.length).toBeLessThan("1,500,000".length);
-    expect(compact).toMatch(/1[.,]5/);
+    expect(compact).toBe(new Intl.NumberFormat(undefined, {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(1_500_000));
+    expect(compact).not.toBe(new Intl.NumberFormat().format(1_500_000));
   });
 });
 
@@ -59,9 +62,10 @@ describe("relativeTime", () => {
     vi.useFakeTimers().setSystemTime(new Date("2026-01-01T12:00:00Z"));
     const now = Math.floor(Date.now() / 1000);
 
-    expect(relativeTime(now - 300)).toMatch(/5 minutes ago/);
-    expect(relativeTime(now - 7_200)).toMatch(/2 hours ago/);
-    expect(relativeTime(now - 172_800)).toMatch(/2 days ago/);
+    const local = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+    expect(relativeTime(now - 300)).toBe(local.format(-5, "minute"));
+    expect(relativeTime(now - 7_200)).toBe(local.format(-2, "hour"));
+    expect(relativeTime(now - 172_800)).toBe(local.format(-2, "day"));
   });
 });
 

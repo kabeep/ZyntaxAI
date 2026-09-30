@@ -1,0 +1,4 @@
+# Git runs shell scripts and hooks through a POSIX shell, including on Windows.
+*.sh text eol=lf
+.husky/* text eol=lf
+apps/desktop/src/lib/bindings/*.ts text eol=lf

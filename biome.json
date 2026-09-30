@@ -1,0 +1,34 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": ["apps/desktop/src/**/*.ts", "apps/desktop/src/**/*.tsx", "apps/desktop/vite.config.ts", "scripts/**/*.mjs", "!!apps/desktop/src/lib/bindings"]
+  },
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "linter": {
+    "rules": {
+      "preset": "none",
+      "correctness": {
+        "noConstAssign": "error",
+        "noInvalidConstructorSuper": "error",
+        "noUnreachable": "error",
+        "noUnsafeFinally": "error",
+        "useValidForDirection": "error",
+        "useValidTypeof": "error"
+      },
+      "suspicious": {
+        "noAsyncPromiseExecutor": "error",
+        "noCompareNegZero": "error",
+        "noDoubleEquals": "error",
+        "noDuplicateCase": "error",
+        "noDuplicateClassMembers": "error",
+        "noDuplicateObjectKeys": "error",
+        "noFallthroughSwitchClause": "error",
+        "noMisleadingCharacterClass": "error",
+        "noSparseArray": "error",
+        "noUnsafeNegation": "error"
+      }
+    }
+  }
+}
