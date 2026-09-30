@@ -5,7 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   assertDraft,
+  commitNotes,
   readVersion,
+  releaseEvent,
   targets,
   verifyChecksums,
   writeChecksums,
@@ -30,6 +32,7 @@ if (commit !== process.env.GITHUB_SHA || run("git", ["status", "--porcelain"]))
   throw new Error("Expected a clean checkout of the workflow commit.");
 const version = readVersion(root);
 const tag = `v${version}`;
+const autoPublish = releaseEvent(process.env.GITHUB_EVENT_NAME, process.env.GITHUB_REF, tag);
 function api(endpoint, optional = false) {
   try {
     return JSON.parse(run("gh", ["api", `repos/${repository}/${endpoint}`]));
@@ -44,6 +47,8 @@ function existingRelease() {
   const release = api(`releases/tags/${tag}`, true);
   const reference = api(`git/ref/tags/${tag}`, true);
   const taggedCommit = reference ? api(`commits/${tag}`).sha : null;
+  if (autoPublish && !taggedCommit)
+    throw new Error("The pushed release tag is missing from the remote repository.");
   assertDraft(release && { isDraft: release.draft }, commit, taggedCommit);
   if (release && !taggedCommit && release.target_commitish !== commit) {
     throw new Error("Existing draft is not bound to this workflow commit.");
@@ -103,6 +108,52 @@ if (mode === "validate") {
     ]);
   }
   const url = `https://github.com/${repository}`;
+  // Use the nearest published release on this commit's ancestry, not an arbitrary local tag.
+  const predecessors = [];
+  for (let page = 1; ; page++) {
+    const releases = api(`releases?per_page=100&page=${page}`);
+    for (const previous of releases) {
+      if (
+        previous.draft ||
+        previous.prerelease ||
+        previous.tag_name === tag ||
+        !/^v\d+\.\d+\.\d+$/.test(previous.tag_name)
+      )
+        continue;
+      try {
+        const base = run("git", ["rev-parse", `${previous.tag_name}^{commit}`]);
+        run("git", ["merge-base", "--is-ancestor", base, commit]);
+        predecessors.push({
+          tag: previous.tag_name,
+          distance: Number(run("git", ["rev-list", "--count", `${base}..${commit}`])),
+        });
+      } catch (error) {
+        // A release on another branch is not the baseline for this release.
+        if (error.status !== 1) throw error;
+      }
+    }
+    if (releases.length < 100) break;
+  }
+  predecessors.sort((a, b) => a.distance - b.distance || a.tag.localeCompare(b.tag));
+  const previousTag = predecessors[0]?.tag;
+  const log = run("git", [
+    "log",
+    "--reverse",
+    "--format=%H%x00%s",
+    previousTag ? `${previousTag}..${commit}` : commit,
+  ]);
+  const changes = commitNotes(
+    repository,
+    log
+      ? log.split("\n").map((line) => {
+          const [hash, subject] = line.split("\0");
+          return { hash, subject };
+        })
+      : [],
+    previousTag,
+    tag,
+  );
+  fs.writeFileSync(path.join(out, "COMMIT_CHANGES.md"), changes);
   const source =
     `# Corresponding source\n\nVersion: ${version}\nBuild commit: ${commit}\n\n` +
     `Source commit: ${url}/tree/${commit}\nRelease tag: ${url}/tree/${tag}\n\n` +
@@ -116,7 +167,7 @@ if (mode === "validate") {
   const notesFile = path.join(root, "dist/release/notes.md");
   fs.writeFileSync(
     notesFile,
-    `${process.env.RELEASE_NOTES || "See CHANGELOG.md for dated fork changes."}\n\n${source}\nInstallers have no platform-authority certificate; macOS uses ad-hoc signing. No updater artifacts are included.\n`,
+    `${process.env.RELEASE_NOTES || "See CHANGELOG.md for dated fork changes."}\n\n${changes}\n${source}\nInstallers have no platform-authority certificate; macOS uses ad-hoc signing. No updater artifacts are included.\n`,
   );
   const release = existingRelease();
   const assets = fs.readdirSync(out);
@@ -151,5 +202,11 @@ if (mode === "validate") {
     ...assets.map((file) => path.join(out, file)),
     "--clobber",
   ]);
-  console.log(`Draft prepared at ${url}/releases. Review it and publish manually.`);
+  if (autoPublish) {
+    existingRelease();
+    run("gh", ["release", "edit", tag, "--repo", repository, "--verify-tag", "--draft=false"]);
+    console.log(`Release published at ${url}/releases/tag/${tag}.`);
+  } else {
+    console.log(`Draft prepared at ${url}/releases. Review it and publish manually.`);
+  }
 }

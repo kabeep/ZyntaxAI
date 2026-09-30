@@ -37,6 +37,29 @@ export function assertDraft(release, commit, taggedCommit) {
     throw new Error("The release tag points to a different source commit.");
 }
 
+export function releaseEvent(event, ref, tag) {
+  if (event === "workflow_dispatch") return false;
+  if (event !== "push" || ref !== `refs/tags/${tag}`) {
+    throw new Error(
+      "Automatic release requires a pushed version tag matching all version metadata.",
+    );
+  }
+  return true;
+}
+
+export function commitNotes(repository, records, previousTag, tag) {
+  const escape = (text) => text.replace(/[\\`*_{}\[\]()<>#!|]/g, "\\$&");
+  const url = `https://github.com/${repository}`;
+  const lines = records.map(
+    ({ hash, subject }) => `- ${escape(subject)} ([${hash.slice(0, 7)}](${url}/commit/${hash}))`,
+  );
+  return (
+    `## Commit changes\n\n${previousTag ? `Changes since ${escape(previousTag)}.` : "First release: complete commit history through this version."}\n\n` +
+    `${lines.length ? lines.join("\n") : "No new commits."}\n` +
+    (previousTag ? `\n[Full diff](${url}/compare/${previousTag}...${tag})\n` : "")
+  );
+}
+
 export function sha256(file) {
   return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }

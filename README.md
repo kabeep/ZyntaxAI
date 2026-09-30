@@ -418,15 +418,26 @@ pnpm release
 Run from a clean committed checkout. `pnpm release` builds the current platform and places installers,
 LICENSE, NOTICE, build metadata and checksums in `dist/release/<version>/<platform>/`. It does not upload.
 
-For GitHub distribution, use **Actions → Release → Run workflow** on the committed version you want
-to distribute. Every selected platform must pass lint, types, tests and binding checks before packaging.
-Windows and both macOS architectures are built by default; Linux is optional. After all builds pass,
-the workflow verifies artifacts and creates a **draft** in this fork with installers, matching source
-archives, notices, checksums and source/build instructions. Review the draft and publish it manually.
+For automatic GitHub distribution, push a stable version tag matching the committed metadata:
+
+```sh
+git push origin main
+git tag -a v1.0.3 -m "ZyntaxAI 1.0.3"
+git push origin v1.0.3
+```
+
+Every platform must pass lint, types, tests and binding checks before packaging. The tag workflow
+builds Windows, both macOS architectures and Linux installers; verifies artifacts; adds matching
+source archives, notices, checksums and Markdown commit changes; then publishes the release only
+after all uploads succeed. It does not publish to npm or enable the application's updater.
+
+**Actions → Release → Run workflow** remains available to prepare a draft for review instead.
+Manual runs include Windows and macOS by default, with Linux optional; they do not auto-publish.
 CI artifacts are temporary and may be accessible to repository readers before release publication.
 
 Published releases cannot be overwritten by this workflow. A draft can be retried only for the same
-source commit and version. See [docs/RELEASING.md](docs/RELEASING.md) for requirements and limitations.
+source commit and version. Prerelease tags containing `-` do not trigger automatic publication.
+See [docs/RELEASING.md](docs/RELEASING.md) for requirements and limitations.
 The retained `site:sync` tool and `zyntaxai/PUBLISHING.md` describe upstream website distribution;
 they are not used by the fork release workflow.
 </details>

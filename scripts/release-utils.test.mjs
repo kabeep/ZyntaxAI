@@ -5,7 +5,14 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { assertDraft, readVersion, verifyChecksums, writeChecksums } from "./release-utils.mjs";
+import {
+  assertDraft,
+  commitNotes,
+  readVersion,
+  releaseEvent,
+  verifyChecksums,
+  writeChecksums,
+} from "./release-utils.mjs";
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "zyntax-release-"));
@@ -27,7 +34,7 @@ test("release metadata rejects divergent or unsupported versions", (t) => {
   assert.throws(() => readVersion(root), /matching/);
 });
 
-function workflowFixture(t) {
+function workflowFixture(t, { linux = false, history = false } = {}) {
   const root = fixture(t);
   fs.mkdirSync(path.join(root, "scripts"));
   for (const name of ["release-utils.mjs", "release-github.mjs", "release.mjs"]) {
@@ -63,6 +70,7 @@ function workflowFixture(t) {
       if (args[0] === 'api') {
         let result = {};
         if (args[1].includes('/releases/tags/')) result = state.release;
+        if (args[1].includes('/releases?')) result = state.releases || [];
         if (args[1].includes('/git/ref/tags/')) result = state.tag ? { object: {} } : null;
         if (args[1].includes('/commits/')) result = { sha: state.tag };
         if (!result) { const error = new Error('not found'); error.stderr = 'HTTP 404'; throw error; }
@@ -72,6 +80,7 @@ function workflowFixture(t) {
         state.release = { draft: true, target_commitish: args[args.indexOf('--target') + 1], assets: [] };
         fs.writeFileSync(process.env.TEST_GH_STATE, JSON.stringify(state));
       }
+      if (args[1] === 'upload' && state.failUpload) throw new Error('Simulated upload failure');
       return '';
     };
     syncBuiltinESMExports();
@@ -80,6 +89,9 @@ function workflowFixture(t) {
   const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
   git("init", "--quiet");
   git("config", "core.autocrlf", "false");
+  git("config", "user.name", "Release Test");
+  git("config", "user.email", "release-test@example.invalid");
+  git("config", "tag.gpgsign", "false");
   git("add", ".");
   git(
     "-c",
@@ -95,18 +107,40 @@ function workflowFixture(t) {
     "-m",
     "test: fixture",
   );
+  const base = git("rev-parse", "HEAD");
+  if (history) {
+    git("tag", "-a", "v1.0.2", "-m", "previous release", "--", base);
+    fs.writeFileSync(path.join(root, "change.md"), "New version\n");
+    git("add", "change.md");
+    git(
+      "-c",
+      "user.name=Release Test",
+      "-c",
+      "user.email=release-test@example.invalid",
+      "-c",
+      "commit.gpgsign=false",
+      "-c",
+      "core.hooksPath=disabled-hooks",
+      "commit",
+      "--quiet",
+      "-m",
+      "feat: keyboard translation",
+    );
+  }
   const commit = git("rev-parse", "HEAD");
   fs.mkdirSync(path.join(root, "dist/release/upload"), { recursive: true });
   const env = {
     ...process.env,
     GITHUB_ACTIONS: "true",
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_REF: "refs/heads/main",
     GITHUB_REPOSITORY: "example/fork",
     GITHUB_SHA: commit,
     GITHUB_OUTPUT: path.join(root, "dist/output"),
     TEST_GH_STATE: path.join(root, "dist/state.json"),
     TEST_GH_LOG: path.join(root, "dist/gh.log"),
     TEST_BUILD_ARGS: path.join(root, "dist/build-args.json"),
-    RELEASE_LINUX: "false",
+    RELEASE_LINUX: String(linux),
     RELEASE_NOTES: 'Quotes " and $(echo not-executed) `stay literal`',
     CARGO_TARGET_DIR: path.join(root, "dist/cargo-cache"),
   };
@@ -127,6 +161,7 @@ function workflowFixture(t) {
     ["x86_64-pc-windows-msvc", "windows-x86_64", "-setup.exe"],
     ["aarch64-apple-darwin", "darwin-aarch64", ".dmg"],
     ["x86_64-apple-darwin", "darwin-x86_64", ".dmg"],
+    ...(linux ? [["x86_64-unknown-linux-gnu", "linux-x86_64", ".AppImage"]] : []),
   ]) {
     const names = [
       `ZyntaxAI_1.0.3_${platform}${extension}`,
@@ -135,6 +170,10 @@ function workflowFixture(t) {
       "NOTICE",
     ];
     fs.writeFileSync(path.join(out, names[0]), "installer fixture");
+    if (platform.startsWith("linux")) {
+      names.push("ZyntaxAI_1.0.3_linux-x86_64.deb");
+      fs.writeFileSync(path.join(out, names.at(-1)), "deb fixture");
+    }
     fs.writeFileSync(
       path.join(out, names[1]),
       JSON.stringify({
@@ -150,7 +189,7 @@ function workflowFixture(t) {
       fs.copyFileSync(path.join(root, name), path.join(out, name));
     writeChecksums(out, names, `SHA256SUMS-${platform}.txt`);
   }
-  return { root, out, env, run, commit };
+  return { root, out, env, run, commit, base };
 }
 
 test("draft pipeline uploads exact source and notices to the fork with literal release notes", (t) => {
@@ -173,6 +212,72 @@ test("draft pipeline uploads exact source and notices to the fork with literal r
   assert.equal(create[create.indexOf("--target") + 1], commit);
   assert.ok(create.includes("--draft"));
   assert.ok(calls.some((args) => args[1] === "upload"));
+  assert.ok(!calls.some((args) => args.includes("--draft=false")));
+  assert.match(fs.readFileSync(path.join(out, "COMMIT_CHANGES.md"), "utf8"), /First release/);
+});
+
+test("version tags must match metadata; manual runs remain drafts", () => {
+  assert.equal(releaseEvent("push", "refs/tags/v1.0.3", "v1.0.3"), true);
+  assert.equal(releaseEvent("workflow_dispatch", "refs/tags/v1.0.3", "v1.0.3"), false);
+  for (const ref of ["refs/heads/main", "refs/tags/v1.0.2", "refs/tags/v1.0.3-beta"]) {
+    assert.throws(() => releaseEvent("push", ref, "v1.0.3"), /matching/);
+  }
+});
+
+test("commit notes preserve subjects as Markdown text and link individual commits", () => {
+  const changes = commitNotes(
+    "owner/fork",
+    [{ hash: "a".repeat(40), subject: "fix: <script> [link](url) `code`" }],
+    "v1.0.2",
+    "v1.0.3",
+  );
+  assert.ok(changes.includes("\\<script\\>"));
+  assert.ok(changes.includes("https://github.com/owner/fork/commit/"));
+  assert.ok(changes.includes("/compare/v1.0.2...v1.0.3"));
+});
+
+test("tag release publishes all platform assets only after upload and adds commits since the previous published release", (t) => {
+  const { root, out, env, run, commit } = workflowFixture(t, { linux: true, history: true });
+  env.GITHUB_EVENT_NAME = "push";
+  env.GITHUB_REF = "refs/tags/v1.0.3";
+  fs.writeFileSync(
+    env.TEST_GH_STATE,
+    JSON.stringify({
+      release: null,
+      tag: commit,
+      releases: [
+        { draft: false, prerelease: false, tag_name: "v1.0.2" },
+        { draft: true, tag_name: "v1.0.1" },
+      ],
+    }),
+  );
+  const result = run("release-github.mjs", "draft");
+  assert.equal(result.status, 0, result.stderr);
+  const changes = fs.readFileSync(path.join(out, "COMMIT_CHANGES.md"), "utf8");
+  assert.match(changes, /feat: keyboard translation/);
+  assert.doesNotMatch(changes, /test: fixture/);
+  assert.match(changes, /Changes since v1.0.2/);
+  assert.ok(fs.readFileSync(path.join(root, "dist/release/notes.md"), "utf8").includes(changes));
+  const calls = fs.readFileSync(env.TEST_GH_LOG, "utf8").trim().split("\n").map(JSON.parse);
+  const upload = calls.findIndex((args) => args[1] === "upload");
+  const publish = calls.findIndex((args) => args.includes("--draft=false"));
+  assert.ok(upload >= 0 && publish > upload);
+  assert.ok(calls[publish].includes("--verify-tag"));
+  assert.ok(calls[upload].some((arg) => arg.endsWith("linux-x86_64.deb")));
+});
+
+test("tag release cannot publish after an incomplete upload", (t) => {
+  const { env, run, commit } = workflowFixture(t);
+  env.GITHUB_EVENT_NAME = "push";
+  env.GITHUB_REF = "refs/tags/v1.0.3";
+  fs.writeFileSync(
+    env.TEST_GH_STATE,
+    JSON.stringify({ release: null, tag: commit, failUpload: true }),
+  );
+  const result = run("release-github.mjs", "draft");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Simulated upload failure/);
+  assert.doesNotMatch(fs.readFileSync(env.TEST_GH_LOG, "utf8"), /--draft=false/);
 });
 
 test("draft pipeline stops before mutations on published releases or mismatched tags", (t) => {

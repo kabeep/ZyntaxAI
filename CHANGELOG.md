@@ -15,6 +15,8 @@ not an upstream release. The upstream changelog is preserved below.
   and include an offline licence viewer and no-warranty notice.
 - 2026-09-30: replace upstream release packaging with checked,
   unsigned installers, matching source archives, notices and checksums in a GitHub draft release.
+- 2026-09-30: automatically publish stable version tags after all platform builds and uploads pass,
+  with generated Markdown commit changes; retain manual draft releases.
 
 
 ## 1.0.2

@@ -41,7 +41,35 @@ installers. It never uploads. Supported targets: Windows x86_64 (NSIS), macOS ar
 Linux x86_64 (Deb/AppImage). Use `pnpm release --target <Rust triple>` only with that target's build
 tools installed on the appropriate host. Windows/Linux cross-host packaging is not supported.
 
-## GitHub draft release
+## Automatic GitHub release from a version tag
+
+Push a stable `vMAJOR.MINOR.PATCH` tag pointing to the committed version you intend to distribute.
+The tag must match all four metadata versions exactly; prerelease tags containing `-` do not trigger
+this workflow. Push individual version tags, rather than publishing every local/upstream tag.
+For the first fork version, use Git Bash after committing all intended changes:
+
+```sh
+git push origin main
+git tag -a v1.0.3 -m "ZyntaxAI 1.0.3"
+git push origin v1.0.3
+```
+
+The tag's commit must contain the Release workflow. All supported platforms are included:
+Windows x86_64 (NSIS), macOS arm64/x86_64 (DMG), Linux x86_64 (Deb/AppImage). The pipeline checks
+every platform, builds installers from the tag's exact commit, verifies files and source metadata,
+uploads all attachments into a temporary draft, and only then publishes it automatically.
+If checking/building/uploading fails, the release is not published; an upload failure may leave
+a draft for retry. Rerun the failed workflow for the same tag/commit instead of moving the tag.
+An already published release cannot be overwritten. Future releases require a new version/tag.
+
+Release notes include Markdown commit subjects and links since the nearest published stable release
+on the tagged commit's ancestry, plus a full diff link. Drafts, prereleases and unrelated branch
+releases do not define this baseline. With no prior published ancestor, all commits through this
+version are listed. The same content is attached as `COMMIT_CHANGES.md`; no npm publish is performed.
+Source archives, notices, build instructions and checksum generation are unchanged. Automatic
+GitHub release publication does not enable the desktop application's disabled updater.
+
+## Manual GitHub draft release
 
 1. Commit the desired version and push it to the fork. Align all four version fields: root package,
    desktop package, Cargo workspace and Tauri configuration; update Cargo.lock too.
@@ -54,10 +82,11 @@ tools installed on the appropriate host. Windows/Linux cross-host packaging is n
 4. Only after every platform succeeds does the workflow verify platform checksums, build commits,
    versions and notices; generate exact-commit source ZIP/tar.gz, SOURCE.md and combined checksums;
    and create/update a **draft** in `${GITHUB_REPOSITORY}` using that exact commit as its target.
+   Generated commit changes also appear in the notes and `COMMIT_CHANGES.md` attachment.
 5. Review and smoke-test downloaded installers, inspect their contents and corresponding source,
-   then publish the draft manually. The workflow never makes a release public automatically.
+   then publish the draft manually. Manual workflow runs never auto-publish, even when run on a tag.
 
-Only the final draft job gets repository write permission. Runs are serialized per repository.
+Only the final publishing job gets repository write permission. Runs are serialized per repository.
 A retry may overwrite assets only on a draft for the same source commit/version; unexpected old
 assets require review. Published versions must use a new version/tag instead. Do not publish a
 draft while its workflow is still running. GitHub Actions artifact storage is temporary (7 days)
