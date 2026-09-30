@@ -13,7 +13,7 @@ your document. Point it at a hosted model or one running entirely on your own ma
 [Platform support](#platform-support) · [Privacy](#privacy) ·
 [Build from source](#building-from-source)
 
-<img src="https://img.shields.io/badge/version-1.0.2-6366f1?style=flat-square" alt="Version 1.0.2">
+<img src="https://img.shields.io/badge/version-1.1.0-6366f1?style=flat-square" alt="Version 1.1.0">
 <img src="https://img.shields.io/badge/licence-GPL--3.0--or--later-6b7280?style=flat-square" alt="Licence GPL-3.0-or-later">
 <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-6b7280?style=flat-square" alt="Windows, Linux and macOS">
 
@@ -87,7 +87,7 @@ applied straight away with no overlay at all.
 ## Download
 
 Fork downloads: [GitHub Releases](https://github.com/kabeep/ZyntaxAI/releases).
-The inherited upstream version number is **1.0.2**; it does not indicate that a fork release has been published.
+The fork version is **1.1.0**; binaries are published after the release workflow succeeds.
 
 | Platform | File | Notes |
 |---|---|---|

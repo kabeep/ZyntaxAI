@@ -1,6 +1,6 @@
 # Changelog
 
-## Fork changes - 2026-09-30 (unreleased)
+## 1.1.0 - 2026-09-30 (fork)
 
 Modified by kabeep; based on ZyntaxAI by TheHolyOneZ. These entries describe fork changes,
 not an upstream release. The upstream changelog is preserved below.
@@ -17,6 +17,9 @@ not an upstream release. The upstream changelog is preserved below.
   unsigned installers, matching source archives, notices and checksums in a GitHub draft release.
 - 2026-09-30: automatically publish stable version tags after all platform builds and uploads pass,
   with generated Markdown commit changes; retain manual draft releases.
+- 2026-09-30: scope commit hooks and ordinary CI checks to changed files; keep full verification
+  and installer builds in version-tag releases.
+- 2026-09-30: reserve version changes for dedicated SemVer release commits and matching tags.
 
 
 ## 1.0.2
