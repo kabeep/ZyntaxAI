@@ -32,7 +32,7 @@ export function testSettings(): AppSettings {
     system: {
       startWithOs: false,
       startMinimized: false,
-      checkForUpdates: true,
+      checkForUpdates: false,
     },
     appearance: { theme: "system", opacity: 100 },
     sidebar: { categories: [] },

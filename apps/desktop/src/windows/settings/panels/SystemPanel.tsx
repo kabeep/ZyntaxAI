@@ -3,6 +3,7 @@ import { CircleAlert, CircleCheck, Download, Info } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button, Callout, Dialog, Panel, SettingGroup, SettingRow, Switch } from "@/components/ui";
 import { EVENTS, ipc, on, toFixError, type FixError, type UpdateProgress } from "@/lib/ipc";
+import { UPDATES_ENABLED } from "@/lib/updates";
 import { useAppStore } from "@/store/useAppStore";
 import type { DisplayServer } from "@/lib/bindings/DisplayServer";
 import type { HotkeyBackend } from "@/lib/bindings/HotkeyBackend";
@@ -162,7 +163,7 @@ export function SystemPanel() {
 }
 
 
-function UpdatesSection() {
+export function UpdatesSection() {
   const settings = useAppStore((state) => state.settings);
   const update = useAppStore((state) => state.update);
   const version = useAppStore((state) => state.version);
@@ -174,6 +175,7 @@ function UpdatesSection() {
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
 
   useEffect(() => {
+    if (!UPDATES_ENABLED) return;
     const unlisten = on<UpdateProgress>(EVENTS.updateProgress, setProgress);
     return () => {
       void unlisten.then((off) => off());
@@ -184,6 +186,7 @@ function UpdatesSection() {
   const { system } = settings;
 
   const check = async () => {
+    if (!UPDATES_ENABLED) return;
     setState("checking");
     setFailure(null);
     try {
@@ -197,6 +200,7 @@ function UpdatesSection() {
   };
 
   const install = async () => {
+    if (!UPDATES_ENABLED) return;
     setState("installing");
     setFailure(null);
     try {
@@ -214,14 +218,15 @@ function UpdatesSection() {
     <>
       <SettingGroup
         title="Updates"
-        description="Downloaded from zsync.eu and checked against a signature built into this app. Nothing is installed until you choose to."
+        description="This fork does not check for or install upstream updates."
       >
         <SettingRow
           label="Check on start-up"
-          description="Asks once when ZyntaxAI launches. No information about you or this computer is sent."
+          description="This fork does not check for upstream updates on start-up."
           control={
             <Switch
-              checked={system.checkForUpdates}
+              checked={UPDATES_ENABLED && system.checkForUpdates}
+              disabled={!UPDATES_ENABLED}
               onCheckedChange={(checkForUpdates) =>
                 void update({ system: { ...system, checkForUpdates } })
               }
@@ -241,7 +246,7 @@ function UpdatesSection() {
               variant="secondary"
               size="md"
               onClick={() => void check()}
-              disabled={state === "checking" || state === "installing"}
+              disabled={!UPDATES_ENABLED || state === "checking" || state === "installing"}
             >
               {state === "checking" ? "Checking…" : "Check now"}
             </Button>
@@ -266,7 +271,7 @@ function UpdatesSection() {
                 variant="primary"
                 size="md"
                 onClick={() => void install()}
-                disabled={state === "installing"}
+                disabled={!UPDATES_ENABLED || state === "installing"}
               >
                 {state === "installing" ? "Installing…" : "Install and restart"}
               </Button>
@@ -285,7 +290,7 @@ function UpdatesSection() {
                 it. Update it the way you installed it, or take the new build from the download
                 page.
               </p>
-              <Button variant="secondary" size="md" onClick={() => void openUrl(DOWNLOAD_URL)}>
+              <Button variant="secondary" size="md" disabled={!UPDATES_ENABLED} onClick={() => void openUrl(DOWNLOAD_URL)}>
                 Open download page
               </Button>
             </div>

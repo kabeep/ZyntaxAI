@@ -1,3 +1,4 @@
+import { UPDATES_ENABLED } from "@/lib/updates";
 import { useEffect, useState, type ComponentType } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -176,7 +177,7 @@ export function App() {
                 <div className="space-y-2">
 
 
-                  {availableUpdate ? (
+                  {UPDATES_ENABLED && availableUpdate ? (
                     <button
                       type="button"
                       onClick={() => setSection("system")}

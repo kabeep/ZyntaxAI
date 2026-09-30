@@ -499,3 +499,12 @@ the original correction cleanup (including whitespace and code fences). Processi
 advanced request parameters continue to apply. Instructions are limited to 64 KiB of UTF-8 text.
 Save explicitly; failed saves retain your draft, and closing an unsaved edit offers save,
 discard or cancel. Personal prompts are not bundled with the application.
+
+### Updates in this fork
+
+This fork does not check for or install updates from the upstream project. Settings disables
+startup checks, manual checks,
+installation/restart and the upstream download action; startup checking defaults to off.
+Previously enabled settings cannot trigger checks, and updater commands reject operations
+before accessing the upstream service. The original updater implementation, endpoints and
+release tooling are retained for future configuration of a fork-owned update channel.

@@ -73,7 +73,7 @@ impl Default for BehaviorSettings {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct SystemSettings {
@@ -82,17 +82,6 @@ pub struct SystemSettings {
     pub start_minimized: bool,
 
     pub check_for_updates: bool,
-}
-
-impl Default for SystemSettings {
-    fn default() -> Self {
-        Self {
-            start_with_os: false,
-            start_minimized: false,
-
-            check_for_updates: true,
-        }
-    }
 }
 
 pub const SIDEBAR_SECTIONS: [&str; 10] = [
@@ -419,14 +408,14 @@ mod tests {
     }
 
     #[test]
-    fn an_older_settings_file_still_opts_into_update_checks() {
+    fn an_older_settings_file_defaults_to_manual_updates() {
         let system: SystemSettings =
             serde_json::from_str(r#"{"startWithOs":true,"startMinimized":true}"#)
                 .expect("an older system block still parses");
 
         assert!(system.start_with_os);
         assert!(system.start_minimized);
-        assert!(system.check_for_updates);
+        assert!(!system.check_for_updates);
     }
 
     #[test]

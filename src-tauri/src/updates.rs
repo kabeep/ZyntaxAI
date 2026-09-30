@@ -31,13 +31,32 @@ pub struct UpdateProgress {
     pub total: Option<u64>,
 }
 
+// Keep the updater implementation and configuration for a future fork-owned channel.
+pub const UPDATES_ENABLED: bool = false;
+
+fn ensure_enabled() -> Result<(), FixError> {
+    if !UPDATES_ENABLED {
+        return Err(FixError {
+            code: "updates_disabled".to_owned(),
+            message: "Upstream updates are disabled in this fork.".to_owned(),
+            remedy: "Install updates from this fork's distribution channel.".to_owned(),
+            retryable: false,
+        });
+    }
+    Ok(())
+}
+
 static PENDING: Mutex<Option<UpdateInfo>> = Mutex::new(None);
 
 pub fn pending() -> Option<UpdateInfo> {
+    if !UPDATES_ENABLED {
+        return None;
+    }
     PENDING.lock().expect("update state poisoned").clone()
 }
 
 pub async fn check(app: &AppHandle) -> Result<Option<UpdateInfo>, FixError> {
+    ensure_enabled()?;
     let updater = app.updater().map_err(unavailable)?;
 
     let update = updater.check().await.map_err(|err| FixError {
@@ -63,6 +82,7 @@ pub async fn check(app: &AppHandle) -> Result<Option<UpdateInfo>, FixError> {
 }
 
 pub async fn install(app: &AppHandle) -> Result<(), FixError> {
+    ensure_enabled()?;
     if !can_install_in_place() {
         return Err(FixError {
             code: "update_not_installable".to_owned(),
@@ -118,6 +138,9 @@ pub async fn install(app: &AppHandle) -> Result<(), FixError> {
 }
 
 pub fn check_on_startup(app: &AppHandle) {
+    if !UPDATES_ENABLED {
+        return;
+    }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         match check(&app).await {
@@ -179,5 +202,17 @@ fn unavailable(err: tauri_plugin_updater::Error) -> FixError {
         message: err.to_string(),
         remedy: "Download the latest version from zsync.eu/zyntaxai.".to_owned(),
         retryable: false,
+    }
+}
+
+#[cfg(test)]
+mod policy_tests {
+    use super::*;
+    #[test]
+    fn disabled_updates_reject_operations_and_do_not_expose_pending_updates() {
+        let error = ensure_enabled().unwrap_err();
+        assert_eq!(error.code, "updates_disabled");
+        assert!(!error.retryable);
+        assert!(pending().is_none());
     }
 }

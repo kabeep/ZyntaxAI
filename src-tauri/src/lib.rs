@@ -111,11 +111,12 @@ pub fn run() {
                 tracing::error!(%err, %accelerator, "could not register the global hotkey");
             }
 
-            if handle
-                .state::<AppState>()
-                .settings()
-                .system
-                .check_for_updates
+            if updates::UPDATES_ENABLED
+                && handle
+                    .state::<AppState>()
+                    .settings()
+                    .system
+                    .check_for_updates
             {
                 updates::check_on_startup(&handle);
             }
