@@ -43,6 +43,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
       - name: Validate versions, source commit and existing release
         id: version
         env:
@@ -106,6 +107,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
       - uses: actions/download-artifact@v4
         with:
           pattern: installers-*

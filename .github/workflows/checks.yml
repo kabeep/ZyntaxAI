@@ -40,6 +40,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
       - id: scope
         run: node scripts/check-changes.mjs scope
 
@@ -102,6 +103,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
