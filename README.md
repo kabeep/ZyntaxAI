@@ -9,7 +9,7 @@
 Select text in any application, press the hotkey, and see exactly what changed before it touches
 your document. Point it at a hosted model or one running entirely on your own machine.
 
-[**Download**](https://zsync.eu/zyntaxai/) · [Features](#features) ·
+[**Download**](https://github.com/kabeep/ZyntaxAI/releases) · [Features](#features) ·
 [Platform support](#platform-support) · [Privacy](#privacy) ·
 [Build from source](#building-from-source)
 
@@ -20,6 +20,21 @@ your document. Point it at a hosted model or one running entirely on your own ma
 </div>
 
 <br>
+
+## Fork notice
+
+This is a modified fork of [ZyntaxAI by TheHolyOneZ](https://github.com/TheHolyOneZ/ZyntaxAI),
+maintained by [kabeep](https://github.com/kabeep). Fork modifications were made on
+**2026-09-29 and 2026-09-30**. Original authorship and copyright notices are retained.
+See [NOTICE](NOTICE) for attribution and distribution notices.
+The fork adds custom request-body parameters, per-persona custom instructions, validation and
+build checks, and disables upstream update operations. See [CHANGELOG.md](CHANGELOG.md).
+
+This fork remains licensed under **GPL-3.0-or-later**; see [LICENSE](LICENSE).
+It is provided without warranty, to the extent permitted by law. Download this fork from
+[its Releases page](https://github.com/kabeep/ZyntaxAI/releases), rather than the upstream site.
+For distributing installers and their corresponding source, see [the release guide](docs/RELEASING.md).
+
 
 <img src="assets/screenshots/overlay.png" alt="A correction shown over a text editor, with the changed words highlighted">
 
@@ -71,7 +86,8 @@ applied straight away with no overlay at all.
 
 ## Download
 
-Current release: **1.0.2**, from [zsync.eu/zyntaxai](https://zsync.eu/zyntaxai/).
+Fork downloads: [GitHub Releases](https://github.com/kabeep/ZyntaxAI/releases).
+The inherited upstream version number is **1.0.2**; it does not indicate that a fork release has been published.
 
 | Platform | File | Notes |
 |---|---|---|
@@ -330,23 +346,19 @@ The text you correct is sent to whichever provider you configure, over HTTPS, an
 It is never written to disk. History records counts, token totals and timings — never content.
 Choose Ollama and nothing leaves your machine at all.
 
-There is no telemetry and no analytics. The only network access besides your provider is the update
-check: a plain request for a static file on zsync.eu, carrying nothing about you or your computer,
-and switchable off in **System**.
+There is no telemetry and no analytics. This fork does not check for or install upstream updates.
+Provider requests and actions you explicitly open in a browser remain available.
 
 API keys are held in your operating system's keychain, never in a configuration file, and are never
 handed to the user interface.
 
 ## Updates
 
-ZyntaxAI checks for a new version when it starts and mentions it quietly in **System**. It never
-interrupts you and never installs anything on its own.
+This fork does not check for or install upstream updates. Startup checks default to off,
+and all update controls in System are disabled. Obtain fork builds from
+[GitHub Releases](https://github.com/kabeep/ZyntaxAI/releases).
+The original updater implementation and configuration are retained but inactive.
 
-Every download is verified against a public key compiled into the binary; an update that fails that
-check is discarded rather than installed. Where the app cannot safely replace itself — a `.deb` or
-`.rpm` install, which the package manager owns — it offers the download page instead of trying.
-
----
 
 ## Building from source
 
@@ -359,7 +371,7 @@ sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchel
 ```
 
 ```sh
-git clone https://github.com/TheHolyOneZ/ZyntaxAI.git
+git clone https://github.com/kabeep/ZyntaxAI.git
 cd ZyntaxAI
 pnpm install
 
@@ -395,7 +407,10 @@ hit this.
 
 <br>
 
-There is no release server. The app fetches one static `latest.json` and verifies every artifact it
+The following describes the retained upstream release tooling, not an active update channel for
+this fork. Do not publish its upstream manifests as fork updates; follow [docs/RELEASING.md](docs/RELEASING.md).
+
+Upstream uses no release server. Its app fetches one static `latest.json` and verifies every artifact it
 downloads against the public key in `src-tauri/tauri.conf.json`.
 
 ```sh
@@ -475,8 +490,8 @@ not — you must pass on those same freedoms and make your source available unde
 <div align="center">
 <br>
 
-**[Download](https://zsync.eu/zyntaxai/)** · [Source](https://github.com/TheHolyOneZ/ZyntaxAI) ·
-[More projects](https://zsync.eu) · [Author](https://github.com/TheHolyOneZ)
+**[Download](https://github.com/kabeep/ZyntaxAI/releases)** · [Source](https://github.com/kabeep/ZyntaxAI) ·
+[Original project](https://github.com/TheHolyOneZ/ZyntaxAI) · [Original author](https://github.com/TheHolyOneZ)
 
 <sub>Built with Rust, Tauri and React · © 2026 TheHolyOneZ</sub>
 

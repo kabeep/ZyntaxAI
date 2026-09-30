@@ -1,8 +1,10 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { ArrowUpRight, Boxes, Download, Github, Scale, User } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { SettingGroup, SettingRow } from "@/components/ui";
+import { Button, Dialog, SettingGroup, SettingRow } from "@/components/ui";
 import logo from "@/assets/logo.png";
+import licenceText from "../../../../../../LICENSE?raw";
+import forkNotice from "../../../../../../NOTICE?raw";
 import { cn } from "@/lib/cn";
 import { ipc, type AppPaths } from "@/lib/ipc";
 import { useAppStore } from "@/store/useAppStore";
@@ -11,25 +13,25 @@ const LINKS = [
   {
     icon: Download,
     title: "Download",
-    subtitle: "zsync.eu/zyntaxai",
-    href: "https://zsync.eu/zyntaxai/",
+    subtitle: "github.com/kabeep/ZyntaxAI/releases",
+    href: "https://github.com/kabeep/ZyntaxAI/releases",
     featured: true,
   },
   {
     icon: Github,
     title: "Source code",
+    subtitle: "github.com/kabeep/ZyntaxAI",
+    href: "https://github.com/kabeep/ZyntaxAI",
+  },
+  {
+    icon: Boxes,
+    title: "Original project",
     subtitle: "github.com/TheHolyOneZ/ZyntaxAI",
     href: "https://github.com/TheHolyOneZ/ZyntaxAI",
   },
   {
-    icon: Boxes,
-    title: "More projects",
-    subtitle: "zsync.eu",
-    href: "https://zsync.eu",
-  },
-  {
     icon: User,
-    title: "Author",
+    title: "Original author",
     subtitle: "TheHolyOneZ",
     href: "https://github.com/TheHolyOneZ",
   },
@@ -44,6 +46,7 @@ const LINKS = [
 export function AboutPanel() {
   const version = useAppStore((state) => state.version);
   const backend = useAppStore((state) => state.secretBackend);
+  const [showLicence, setShowLicence] = useState(false);
   const [paths, setPaths] = useState<AppPaths | null>(null);
 
   useEffect(() => {
@@ -53,14 +56,20 @@ export function AboutPanel() {
   return (
     <div className="scroll-area h-full">
       <div className="mx-auto max-w-2xl px-8 py-7">
-
-
         <header className="mb-9 flex items-center gap-5">
           <Mark className="size-16 shrink-0" />
           <div className="min-w-0">
-            <h1 className="text-xl leading-none font-medium tracking-tight text-fg">ZyntaxAI</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl leading-none font-medium tracking-tight text-fg">ZyntaxAI</h1>
+              <span className="rounded border border-line px-1.5 py-0.5 text-2xs text-muted">
+                Fork
+              </span>
+            </div>
             <p className="mt-1.5 text-sm text-muted">
               Correct, rewrite and translate text anywhere, with one hotkey.
+            </p>
+            <p className="mt-1.5 text-xs text-muted">
+              Based on ZyntaxAI by TheHolyOneZ. This fork is maintained by kabeep.
             </p>
             <p data-numeric className="mt-2 text-2xs text-faint">
               Version {version || "—"} &middot; Windows, Linux and macOS
@@ -78,12 +87,26 @@ export function AboutPanel() {
           <div className="flex items-start gap-3 px-4 py-3.5">
             <Scale className="mt-0.5 size-4 shrink-0 text-faint" />
             <div className="min-w-0">
-              <p className="text-sm font-medium text-fg">GNU General Public License v3.0 or later</p>
+              <p className="text-sm font-medium text-fg">
+                GNU General Public License v3.0 or later
+              </p>
               <p className="mt-1 text-xs leading-relaxed text-muted">
                 You are free to use, study, share and modify ZyntaxAI. If you distribute it —
-                changed or not — you must pass on those same freedoms and make your source
-                available under the same licence.
+                changed or not — you must pass on those same freedoms and make your source available
+                under the same licence.
               </p>
+              <p className="mt-2 text-xs leading-relaxed text-muted">
+                This software is provided without warranty, to the extent permitted by law. See the
+                licence for the full terms.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="mt-3"
+                onClick={() => setShowLicence(true)}
+              >
+                View licence
+              </Button>
             </div>
           </div>
         </SettingGroup>
@@ -110,6 +133,32 @@ export function AboutPanel() {
         <p className="pt-2 text-center text-2xs text-faint">
           Built with Rust, Tauri and React &middot; &copy; 2026 TheHolyOneZ
         </p>
+        <p className="mt-1 text-center text-2xs text-faint">Fork maintained by kabeep.</p>
+        <Dialog
+          open={showLicence}
+          onOpenChange={setShowLicence}
+          title="GNU General Public License"
+          description="Version 3; this project is licensed under GPL v3.0 or later."
+          width="lg"
+          footer={
+            <Button variant="secondary" onClick={() => setShowLicence(false)}>
+              Close licence
+            </Button>
+          }
+        >
+          <pre
+            data-selectable
+            className="mb-4 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted"
+          >
+            {forkNotice}
+          </pre>
+          <pre
+            data-selectable
+            className="whitespace-pre-wrap break-words text-xs leading-relaxed text-muted"
+          >
+            {licenceText}
+          </pre>
+        </Dialog>
       </div>
     </div>
   );
@@ -171,7 +220,6 @@ function PathRow({ label, value }: { label: string; value: string | undefined })
     />
   );
 }
-
 
 function Mark({ className }: { className?: string }) {
   return <img src={logo} alt="" className={cn("rounded-xl", className)} />;

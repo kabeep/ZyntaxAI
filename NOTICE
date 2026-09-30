@@ -1,0 +1,20 @@
+ZyntaxAI fork notice
+
+Original project: ZyntaxAI by TheHolyOneZ
+Original source: https://github.com/TheHolyOneZ/ZyntaxAI
+Copyright (c) 2026 TheHolyOneZ
+
+This is a modified version maintained by kabeep.
+Fork source: https://github.com/kabeep/ZyntaxAI
+Fork downloads: https://github.com/kabeep/ZyntaxAI/releases
+Modifications dated 2026-09-29 and 2026-09-30 include custom request-body parameters,
+per-persona custom instructions, validation/build checks, disabled upstream updates,
+and fork attribution and distribution links. See CHANGELOG.md for dated changes.
+
+The fork is licensed under GPL-3.0-or-later. You may redistribute and modify it
+under that licence. See LICENSE for the full terms. This software is provided
+without warranty, to the extent permitted by law.
+
+Retain upstream copyright, licence and absence-of-warranty notices when redistributing.
+When distributing binaries, provide the complete corresponding source for that exact
+version, including required build/install scripts, under the applicable licence terms.

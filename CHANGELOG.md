@@ -1,5 +1,20 @@
 # Changelog
 
+## Fork changes - 2026-09-30 (unreleased)
+
+Modified by kabeep; based on ZyntaxAI by TheHolyOneZ. These entries describe fork changes,
+not an upstream release. The upstream changelog is preserved below.
+
+- 2026-09-29: ignore local dependencies and build artifacts.
+- 2026-09-30: add Git hooks and cross-platform CI checks.
+- 2026-09-30: add validated per-provider request-body parameters and an advanced JSON editor.
+- 2026-09-30: add per-persona custom instructions while preserving enabled Languages translation rules.
+- 2026-09-30: refine prompt mode selection, draft handling and stable editor layout.
+- 2026-09-30: disable upstream update controls and checks; retain the updater implementation.
+- 2026-09-30: identify the fork in About, retain upstream credit, route downloads/source to the fork,
+  and include an offline licence viewer and no-warranty notice.
+
+
 ## 1.0.2
 
 A hotkey has to let go of its own keys. Both bugs below are the same mistake at opposite ends of a
