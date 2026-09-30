@@ -780,6 +780,7 @@ mod tests {
             name: "Hijacked".to_owned(),
             instruction: "…".to_owned(),
             builtin: true,
+            custom_instructions: false,
         });
         settings.normalize();
         assert!(settings.custom_personas.is_empty());
@@ -812,6 +813,7 @@ mod tests {
             name: "Pirate".to_owned(),
             instruction: "Arr.".to_owned(),
             builtin: false,
+            custom_instructions: false,
         });
         settings.persona_id = "pirate".to_owned();
 
@@ -849,5 +851,30 @@ mod tests {
             AppSettings::load(&path),
             Err(SettingsError::Parse(_))
         ));
+    }
+}
+
+#[cfg(test)]
+mod custom_instruction_tests {
+    use super::*;
+    #[test]
+    fn older_personas_default_to_original_mode_and_switch_round_trips() {
+        let mut settings = AppSettings::default();
+        let old = serde_json::json!({"id":"custom","name":"Casual","instruction":"  Translate casually.\n","builtin":false});
+        let mut persona: Persona = serde_json::from_value(old).unwrap();
+        assert!(!persona.custom_instructions);
+        persona.custom_instructions = true;
+        settings.custom_personas.push(persona);
+        settings.persona_id = "custom".to_owned();
+        settings.translate = true;
+        settings.language_tag = "en".to_owned();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        settings.save(&path).unwrap();
+        let loaded = AppSettings::load(&path).unwrap();
+        assert_eq!(loaded, settings);
+        assert!(loaded.active_persona().custom_instructions);
+        assert!(loaded.translate);
+        assert!(serde_json::from_value::<Persona>(serde_json::json!({"id":"custom","name":"Casual","instruction":"hi","builtin":false,"customInstructions":"true"})).is_err());
     }
 }

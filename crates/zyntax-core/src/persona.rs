@@ -10,15 +10,30 @@ pub struct Persona {
 
     pub instruction: String,
     pub builtin: bool,
+    #[serde(default)]
+    pub custom_instructions: bool,
 }
 
+pub const MAX_INSTRUCTION_BYTES: usize = 64 * 1024;
+
 impl Persona {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.name.trim().is_empty() || self.instruction.trim().is_empty() {
+            return Err("a persona needs a name and an instruction");
+        }
+        if self.instruction.len() > MAX_INSTRUCTION_BYTES {
+            return Err("persona instructions exceed the 64 KiB UTF-8 limit");
+        }
+        Ok(())
+    }
+
     fn builtin(id: &str, name: &str, instruction: &str) -> Self {
         Self {
             id: id.to_owned(),
             name: name.to_owned(),
             instruction: instruction.to_owned(),
             builtin: true,
+            custom_instructions: false,
         }
     }
 }
@@ -92,5 +107,23 @@ mod tests {
     #[test]
     fn every_builtin_is_marked_builtin() {
         assert!(builtin_personas().iter().all(|p| p.builtin));
+    }
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+    #[test]
+    fn instruction_limit_counts_utf8_bytes_and_allows_the_boundary() {
+        let mut persona = builtin_persona(DEFAULT_PERSONA_ID).unwrap();
+        persona.instruction = "x".repeat(MAX_INSTRUCTION_BYTES);
+        assert!(persona.validate().is_ok());
+        persona.instruction.push('x');
+        assert!(persona.validate().is_err());
+        persona.instruction = "\u{4e2d}".repeat(22_000);
+        assert!(persona.validate().is_err());
+        persona.instruction = "valid".to_owned();
+        persona.name = " ".to_owned();
+        assert!(persona.validate().is_err());
     }
 }

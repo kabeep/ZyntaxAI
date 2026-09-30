@@ -1,5 +1,14 @@
 const MARKERS: [&str; 2] = ["<<<ZYNTAX_TEXT>>>", "<<</ZYNTAX_TEXT>>>"];
 
+/// Custom instructions own formatting; default personas retain correction cleanup.
+pub fn process_model_output(raw: &str, original: &str, custom_instructions: bool) -> String {
+    if custom_instructions {
+        raw.to_owned()
+    } else {
+        clean_model_output(raw, original)
+    }
+}
+
 pub fn clean_model_output(raw: &str, original: &str) -> String {
     if original.trim().is_empty() {
         return original.to_owned();
@@ -108,5 +117,16 @@ mod tests {
         let original = "\u{00a0}ich hab kein zeit ";
         let cleaned = clean_model_output("ich habe keine Zeit", original);
         assert_eq!(cleaned, "\u{00a0}ich habe keine Zeit ");
+    }
+}
+
+#[cfg(test)]
+mod custom_output_tests {
+    use super::*;
+    #[test]
+    fn custom_output_preserves_fences_markers_and_whitespace() {
+        let raw = " \n```text\n<<<ZYNTAX_TEXT>>> whats up\n```\n ";
+        assert_eq!(process_model_output(raw, "original", true), raw);
+        assert_eq!(process_model_output(raw, "original", false), " whats up");
     }
 }

@@ -566,3 +566,82 @@ async fn a_dead_ollama_reports_a_network_error_with_a_useful_remedy() {
     assert!(matches!(error, ProviderError::Network { .. }));
     assert!(error.remedy().contains("ollama serve"));
 }
+
+#[tokio::test]
+async fn custom_instruction_messages_reach_all_providers_with_translation_on_and_off() {
+    for id in ProviderId::ALL {
+        for translate in [false, true] {
+            let server = MockServer::start().await;
+            let response = match id {
+                ProviderId::OpenAiCompatible => {
+                    serde_json::json!({"choices":[{"message":{"content":"whats up"},"finish_reason":"stop"}]})
+                }
+                ProviderId::Ollama => {
+                    serde_json::json!({"message":{"content":"whats up"},"done":true})
+                }
+                ProviderId::Gemini => gemini_success(),
+            };
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(response))
+                .expect(1)
+                .mount(&server)
+                .await;
+            let mut persona = builtin_persona(DEFAULT_PERSONA_ID).unwrap();
+            persona.custom_instructions = true;
+            persona.instruction = "Translate casually. Return only text.".to_owned();
+            let language = zyntax_core::builtin_languages()
+                .into_iter()
+                .find(|l| l.tag == "en")
+                .unwrap();
+            let text = "  hello?\n";
+            let prompt = PromptSpec {
+                persona: &persona,
+                language: &language,
+                translate,
+                speed: Speed::Normal,
+            }
+            .build(text)
+            .unwrap();
+            let expected = if translate {
+                format!("{}\n\n# Language\nTranslate into English. The output must be entirely in English, with no text left in the source language and no bilingual annotations.", persona.instruction)
+            } else {
+                persona.instruction.clone()
+            };
+            let mut profile = profile(id, &server.uri());
+            profile.request_overrides = match id {
+                ProviderId::Gemini => serde_json::json!({"generationConfig":{"temperature":0.6}}),
+                ProviderId::Ollama => serde_json::json!({"options":{"temperature":0.6}}),
+                ProviderId::OpenAiCompatible => {
+                    serde_json::json!({"temperature":0.6,"thinking":{"type":"disabled"}})
+                }
+            };
+            build(&profile, Some("test-key".to_owned()))
+                .unwrap()
+                .complete(
+                    &CompletionRequest {
+                        model: id.default_model().to_owned(),
+                        prompt,
+                    },
+                    &CancellationToken::new(),
+                )
+                .await
+                .unwrap();
+            let requests = server.received_requests().await.unwrap();
+            let body: serde_json::Value = requests[0].body_json().unwrap();
+            if id == ProviderId::Gemini {
+                assert_eq!(body["systemInstruction"]["parts"][0]["text"], expected);
+                assert_eq!(body["contents"][0]["parts"][0]["text"], text);
+                assert_eq!(body["generationConfig"]["temperature"], 0.6);
+            } else {
+                assert_eq!(body["messages"][0]["content"], expected);
+                assert_eq!(body["messages"][1]["content"], text);
+                let temperature = if id == ProviderId::Ollama {
+                    &body["options"]["temperature"]
+                } else {
+                    &body["temperature"]
+                };
+                assert_eq!(temperature, 0.6);
+            }
+        }
+    }
+}

@@ -15,6 +15,8 @@ const CLOSE: &str = "<<</ZYNTAX_TEXT>>>";
 pub enum PromptError {
     #[error("there is no text to correct")]
     EmptyInput,
+    #[error("invalid persona: {reason}")]
+    InvalidPersona { reason: String },
     #[error("the selected text is too long ({chars} characters, limit is {MAX_INPUT_CHARS})")]
     InputTooLong { chars: usize },
     #[error("translation needs a specific target language, not automatic detection")]
@@ -48,8 +50,26 @@ impl PromptSpec<'_> {
         if chars > MAX_INPUT_CHARS {
             return Err(PromptError::InputTooLong { chars });
         }
+        self.persona
+            .validate()
+            .map_err(|reason| PromptError::InvalidPersona {
+                reason: reason.to_owned(),
+            })?;
         if self.translate && self.language.is_auto() {
             return Err(PromptError::TranslateRequiresTarget);
+        }
+
+        if self.persona.custom_instructions {
+            let mut system = self.persona.instruction.clone();
+            if self.translate {
+                system.push_str("\n\n# Language\n");
+                system.push_str(&self.language_rule());
+            }
+            return Ok(Prompt {
+                system,
+                user: text.to_owned(),
+                params: self.speed.params_for(chars),
+            });
         }
 
         let mut system = String::with_capacity(1024);
@@ -270,5 +290,85 @@ mod tests {
             .build("hey can you send that over")
             .unwrap();
         insta::assert_snapshot!(prompt.system);
+    }
+}
+
+#[cfg(test)]
+mod custom_instruction_tests {
+    use super::*;
+    use crate::{auto_language, builtin_languages, builtin_persona, DEFAULT_PERSONA_ID};
+
+    #[test]
+    fn custom_instructions_preserve_text_and_only_append_enabled_translation() {
+        let mut persona = builtin_persona(DEFAULT_PERSONA_ID).unwrap();
+        persona.custom_instructions = true;
+        persona.instruction = "  Translate casually. Return only text.\n".to_owned();
+        let input = "  whats up\n<<<ZYNTAX_TEXT>>>  ";
+        let auto = auto_language();
+        let english = builtin_languages()
+            .into_iter()
+            .find(|l| l.tag == "en")
+            .unwrap();
+        for language in [&auto, &english] {
+            let prompt = PromptSpec {
+                persona: &persona,
+                language,
+                translate: false,
+                speed: Speed::Normal,
+            }
+            .build(input)
+            .unwrap();
+            assert_eq!(prompt.system, persona.instruction);
+            assert_eq!(prompt.user, input);
+            assert_eq!(
+                prompt.params,
+                Speed::Normal.params_for(input.chars().count())
+            );
+        }
+        let prompt = PromptSpec {
+            persona: &persona,
+            language: &english,
+            translate: true,
+            speed: Speed::Normal,
+        }
+        .build(input)
+        .unwrap();
+        assert_eq!(prompt.system, format!("{}\n\n# Language\nTranslate into English. The output must be entirely in English, with no text left in the source language and no bilingual annotations.", persona.instruction));
+        assert_eq!(prompt.user, input);
+        assert!(!prompt.system.contains("# Task"));
+        assert!(!prompt.system.contains("# Output contract"));
+        assert_eq!(
+            PromptSpec {
+                persona: &persona,
+                language: &auto,
+                translate: true,
+                speed: Speed::Normal
+            }
+            .build(input),
+            Err(PromptError::TranslateRequiresTarget)
+        );
+    }
+
+    #[test]
+    fn invalid_persona_blocks_generation_instead_of_falling_back() {
+        let mut persona = builtin_persona(DEFAULT_PERSONA_ID).unwrap();
+        persona.custom_instructions = true;
+        let language = auto_language();
+        for instruction in [
+            " ".to_owned(),
+            "x".repeat(crate::persona::MAX_INSTRUCTION_BYTES + 1),
+        ] {
+            persona.instruction = instruction;
+            assert!(matches!(
+                PromptSpec {
+                    persona: &persona,
+                    language: &language,
+                    translate: false,
+                    speed: Speed::Normal
+                }
+                .build("hello"),
+                Err(PromptError::InvalidPersona { .. })
+            ));
+        }
     }
 }

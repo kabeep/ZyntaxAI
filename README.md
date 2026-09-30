@@ -481,3 +481,21 @@ not — you must pass on those same freedoms and make your source available unde
 <sub>Built with Rust, Tauri and React · © 2026 TheHolyOneZ</sub>
 
 </div>
+
+### Custom persona instructions
+
+In Settings > Personas, create or edit a custom persona and set **Prompt mode** to **Custom instructions**.
+The mode is saved per persona, not globally. Existing personas default to **Style instruction**. Built-in personas
+retain the original grammar-correction behavior.
+
+In Custom instructions mode, the persona instruction replaces the default role, task, style wrapper and output
+contract. If **Languages > Translate** is on, the selected target-language instructions are still
+appended; a specific target language is required. If Translate is off, no language instructions
+are added. Switching personas never changes your saved Languages settings.
+
+Write the task, tone and output requirements yourself, including returning only the final text
+when needed. Selected text is sent without delimiter markers. Model output is preserved without
+the original correction cleanup (including whitespace and code fences). Processing depth and
+advanced request parameters continue to apply. Instructions are limited to 64 KiB of UTF-8 text.
+Save explicitly; failed saves retain your draft, and closing an unsaved edit offers save,
+discard or cancel. Personal prompts are not bundled with the application.

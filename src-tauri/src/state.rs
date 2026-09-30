@@ -97,6 +97,15 @@ impl AppState {
     }
 
     pub fn save_settings(&self, mut next: AppSettings) -> anyhow::Result<AppSettings> {
+        if next.active_persona().custom_instructions
+            && next.translate
+            && next.active_language().is_auto()
+        {
+            anyhow::bail!("translation needs a specific target language");
+        }
+        for persona in &next.custom_personas {
+            persona.validate().map_err(anyhow::Error::msg)?;
+        }
         for profile in &next.providers {
             zyntax_providers::request_options::validate(profile.id, &profile.request_overrides)?;
         }

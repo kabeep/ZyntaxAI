@@ -4,7 +4,7 @@ use crate::windows;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use ts_rs::TS;
-use zyntax_core::{clean_model_output, FixOutcome, InputSource, OutputMode, PromptSpec};
+use zyntax_core::{FixOutcome, InputSource, OutputMode, PromptSpec};
 use zyntax_platform::{PlatformError, TextIo};
 use zyntax_providers::{CompletionRequest, ProviderError};
 use zyntax_store::NewFix;
@@ -65,6 +65,10 @@ impl From<PlatformError> for FixError {
 impl From<zyntax_core::PromptError> for FixError {
     fn from(error: zyntax_core::PromptError) -> Self {
         let (code, remedy) = match &error {
+            zyntax_core::PromptError::InvalidPersona { .. } => (
+                "invalid_persona",
+                "Edit the active persona in Settings and save valid instructions.".to_owned(),
+            ),
             zyntax_core::PromptError::EmptyInput => (
                 "nothing_to_correct",
                 "Select some text before pressing the hotkey.".to_owned(),
@@ -130,8 +134,9 @@ async fn run(app: &AppHandle, source: InputSource) -> Result<(), FixError> {
         windows::show_overlay_at_cursor(app);
     }
 
+    let persona = settings.active_persona();
     let prompt = PromptSpec {
-        persona: &settings.active_persona(),
+        persona: &persona,
         language: &settings.active_language(),
         translate: settings.translate,
         speed: settings.speed,
@@ -166,7 +171,11 @@ async fn run(app: &AppHandle, source: InputSource) -> Result<(), FixError> {
     state.finish_request(&token);
 
     let completion = completion?;
-    let corrected = clean_model_output(&completion.text, &original);
+    let corrected = zyntax_core::postprocess::process_model_output(
+        &completion.text,
+        &original,
+        persona.custom_instructions,
+    );
 
     let outcome = FixOutcome::new(
         original,

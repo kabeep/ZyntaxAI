@@ -16,6 +16,7 @@ import { useAppStore } from "@/store/useAppStore";
 import type { Language } from "@/lib/ipc";
 
 export function LanguagesPanel() {
+  const personas = useAppStore((state) => state.personas);
   const settings = useAppStore((state) => state.settings);
   const languages = useAppStore((state) => state.languages);
   const update = useAppStore((state) => state.update);
@@ -56,6 +57,12 @@ export function LanguagesPanel() {
         </Button>
       }
     >
+      {personas.find((persona) => persona.id === settings.personaId)?.customInstructions ? (
+        <Callout tone="neutral" className="mb-7">
+          This persona uses custom instructions. Translate adds target-language instructions;
+          when off, the persona controls the language without additional language rules.
+        </Callout>
+      ) : null}
       <SettingGroup title="Translation">
         <SettingRow
           label="Translate into the selected language"
