@@ -147,7 +147,7 @@ function workflowFixture(t, { linux = false, history = false } = {}) {
   );
   const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
   git("init", "--quiet");
-  git("config", "core.autocrlf", "false");
+  git("config", "core.autocrlf", "input");
   git("config", "user.name", "Release Test");
   git("config", "user.email", "release-test@example.invalid");
   git("config", "tag.gpgsign", "false");
@@ -479,6 +479,28 @@ test("local packaging honours Cargo cache, cleans stale bundles and omits signin
   assert.ok(args.includes("--no-sign"));
   assert.equal(JSON.parse(args[args.indexOf("--config") + 1]).bundle.createUpdaterArtifacts, false);
   assert.equal(fs.existsSync(env.TEST_GH_LOG), false);
+});
+
+test("packaging and publishing use exact Git notices despite Windows checkout line endings", (t) => {
+  const { root, env, run, out } = workflowFixture(t);
+  execFileSync("git", ["config", "core.autocrlf", "true"], { cwd: root });
+  for (const file of ["LICENSE", "NOTICE"]) fs.unlinkSync(path.join(root, file));
+  execFileSync("git", ["checkout-index", "--force", "--all"], { cwd: root });
+  assert.ok(fs.readFileSync(path.join(root, "LICENSE"), "utf8").includes("\r\n"));
+  execFileSync("git", ["add", "LICENSE", "NOTICE"], { cwd: root });
+  execFileSync("git", ["diff", "HEAD", "--exit-code"], { cwd: root });
+  assert.equal(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).trim(), "");
+  const build = run("release.mjs", "--target", "x86_64-pc-windows-msvc");
+  assert.equal(build.status, 0, build.stderr);
+  const platform = path.join(root, "dist/release/1.0.3/windows-x86_64");
+  for (const file of ["LICENSE", "NOTICE"]) {
+    const canonical = execFileSync("git", ["show", `HEAD:${file}`], { cwd: root });
+    assert.deepEqual(fs.readFileSync(path.join(platform, file)), canonical);
+    assert.deepEqual(fs.readFileSync(path.join(out, file)), canonical);
+  }
+  verifyChecksums(platform, "SHA256SUMS-windows-x86_64.txt");
+  const publish = run("release-github.mjs", "draft");
+  assert.equal(publish.status, 0, publish.stderr);
 });
 
 test("only drafts with matching source tags can be retried", () => {

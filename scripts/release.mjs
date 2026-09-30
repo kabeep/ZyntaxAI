@@ -96,8 +96,10 @@ for (const file of installers) {
   if (fs.existsSync(path.join(out, name))) throw new Error(`Duplicate installer: ${name}`);
   fs.copyFileSync(file, path.join(out, name));
 }
-for (const file of ["LICENSE", "NOTICE"])
-  fs.copyFileSync(path.join(root, file), path.join(out, file));
+for (const file of ["LICENSE", "NOTICE"]) {
+  const canonical = execFileSync("git", ["show", `${commit}:${file}`], { cwd: root });
+  fs.writeFileSync(path.join(out, file), canonical);
+}
 fs.writeFileSync(
   path.join(out, `BUILDINFO-${platform}.json`),
   `${JSON.stringify({ version, commit, target, platform, updaterArtifacts: false, signing: macOS ? "ad-hoc" : "none" }, null, 2)}\n`,

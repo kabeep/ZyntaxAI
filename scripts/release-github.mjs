@@ -99,7 +99,8 @@ if (mode === "validate") {
   if (fs.readdirSync(out).some((file) => !verified.has(file)))
     throw new Error("Unexpected release artifact.");
   for (const file of ["LICENSE", "NOTICE"]) {
-    if (!fs.readFileSync(path.join(root, file)).equals(fs.readFileSync(path.join(out, file))))
+    const canonical = execFileSync("git", ["show", `${commit}:${file}`], { cwd: root });
+    if (!canonical.equals(fs.readFileSync(path.join(out, file))))
       throw new Error(`Changed ${file} in release artifacts.`);
   }
   for (const [format, extension] of [
